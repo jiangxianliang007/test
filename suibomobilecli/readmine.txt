@@ -1,0 +1,24 @@
+1.logstash 送数据到kafka
+	output {
+       	kafka{
+        	bootstrap_servers => "192.168.20.200:9092"
+        	topic_id => suibomobileslogs
+  		}
+
+
+2.db.conf说明 注意 = 左右的空格，没有空格PYTHON有问题
+[db]
+db_port = 3306 //mysql port
+db_user = taoledb //mysql usr
+db_host = 140.205.102.3 //mysql ip
+db_pass = b1D0B1TZDta  ////mysql pwd
+[kafka]
+broker_hosts = 192.168.20.200:9092,192.168.20.201:9092,192.168.20.202:9092 //kafa broker ip
+
+3.python-kafka 插件
+	https://pypi.python.org/pypi/kafka-python
+
+4.kafka版本
+   kafka_2.11-0.9.0.1.tgz
+
+5.python版本2.7
