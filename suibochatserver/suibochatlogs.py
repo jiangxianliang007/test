@@ -29,7 +29,7 @@ def InitialDB():
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
 	global session
 	DB_CONNECT_STRING = "mysql+mysqldb://%s:%s@%s:%s/imsuibo?charset=utf8" % (db_user,db_pass,db_host,db_port) 
-	engine = create_engine(DB_CONNECT_STRING, echo=True)
+	engine = create_engine(DB_CONNECT_STRING, echo=False)
 	DB_Session = sessionmaker(bind=engine)
 	session = DB_Session()
 	try:
@@ -62,14 +62,10 @@ def Split():
                          client_id="suibochat",
                          bootstrap_servers=kafka_hosts,value_deserializer=lambda m: json.loads(m.decode('utf-8')),auto_offset_reset="earliest", enable_auto_commit=True)
 	for message in consumer:
-		#regstr = "(\\d{4}/\\d{2}/\\d{2}\\s+\\d{2}:\\d{2}:\\d{2})\\| type:suibo version:1.0.0.1 module:TEXT_CHAT eventid:768 pid:1 servid:(\\d+) roomid:(\\d+) anchorUin:(\\d+) vid:(\\d+)_(\\d+) srcUin:(\\d+) dstUin:(\\d+) msgtype:(\\d+) is_public:(\\d+) msg:(.*)"
 		regstr = "(?P<date>\d{4}/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\| type:suibo version:(\d+.\d+.\d+.\d+) module:TEXT_CHAT eventid:768 pid:(\d+) servid:(?P<sid>\d+) roomid:(?P<roomid>\d+) anchorUin:(?P<anchoruin>\d+) vid:(?P<vid>\d+_\d+) srcUin:(?P<srcuin>\d+) dstUin:(?P<dstuin>\d+) msgtype:(\d+) is_public:(\d+) msg:(?P<text>.*)"
-
 		pattern = re.compile(regstr)
 		match = pattern.search(message.value['message'])
 		if match:
-			#print match.group('date'),match.group('sid'),match.group('roomid'),match.group('anchoruin'),match.group('vid'),match.group('srcuin'),match.group('dstuin'),match.group('text')
-			#str = "insert into chattext(date,srcuin,dstuin,msg,vid) values('%s',%d,%d,'%s',%d)" % (match.group(1),int(match.group(7)),int(match.group(8)),match.group(11),int(match.group(4)))
 			str = "insert into suibo_room_liaot_info(tjdate,roomid,anchorUin,vid,srcUin,msg) values('%s',%d,%d,'%s',%d,'%s')" % (match.group('date'),int(match.group('roomid')),int(match.group('anchoruin')),match.group('vid'),int(match.group('srcuin')),match.group('text'))
 			savedbsqlalchemy(str)
 

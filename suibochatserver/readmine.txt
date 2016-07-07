@@ -1,3 +1,5 @@
+解析随播聊天服务信息
+
 1.logstash 送数据到kafka
 	output {
        	kafka{
