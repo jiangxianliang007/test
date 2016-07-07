@@ -28,7 +28,7 @@ def InitialDB():
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
 	global session
 	DB_CONNECT_STRING = "mysql+mysqldb://%s:%s@%s:%s/imsuibo?charset=utf8" % (db_user,db_pass,db_host,db_port) 
-	engine = create_engine(DB_CONNECT_STRING, echo=True)
+	engine = create_engine(DB_CONNECT_STRING, echo=False)
 	DB_Session = sessionmaker(bind=engine)
 	session = DB_Session()
 	try:
@@ -64,15 +64,16 @@ def Split():
                          bootstrap_servers=kafka_hosts,value_deserializer=lambda m: json.loads(m.decode('utf-8')),auto_offset_reset="earliest", enable_auto_commit=True)
 	for message in consumer:
 		sqlstr=""
-		try:
-			if message.value['eventId'] == 30006 and message.value['uin']>0: #手机机型
-				sqlstr = "update suibo_user_info set terminal_type='%s' where uin = %d" % (message.value['content']['Model'],message.value['uin'])
-				if savedbsqlalchemy(sqlstr) == 0:
-					sqlstr = "insert into suibo_user_info(terminal_type,uin) values('%s',%d)" % (message.value['content']['Model'],message.value['uin'])
-					savedbsqlalchemy(sqlstr)
-		except Exception, e:
-			print Exception,":",e
-			continue
+		if ('eventId' in message.value) and ('uin' in message.value) and ('content' in message.value) and ('Model' in message.value['content']) and ('func' in message.value['content']):
+			try:
+				if message.value['eventId'] == 20000 and message.value['uin']>0 and ('/mapi/msgpush/settoken.html' in message.value['content']['func']): #手机机型
+					sqlstr = "update suibo_user_info set terminal_type='%s' where uin = %d" % (message.value['content']['Model'],message.value['uin'])
+					if savedbsqlalchemy(sqlstr) == 0:
+						sqlstr = "insert into suibo_user_info(terminal_type,uin) values('%s',%d)" % (message.value['content']['Model'],message.value['uin'])
+						savedbsqlalchemy(sqlstr)
+			except Exception, e:
+				print Exception,":",e
+				continue
 		
 	
 def main():
