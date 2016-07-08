@@ -54,22 +54,25 @@ def savedbsqlalchemy(sql):
 	except Exception, e:
 		print Exception,":",e
 		return False
-	
+
+#返回 {mode,source,uin,time}
+# mode: 1 表示新注册用户，非0登录用户
+# source: 表示登录来源,99表示手机
+# uin: 用户
+# time: 表示LOG发生的时间
 def GetRegUinInfo(message):
 	#得到注册时间
 	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value):
 		if message.value['eventid'] == 10025:
 			if 'retData' in message.value['content']:
 				retjson=json.JSONDecoder().decode(message.value['content']['retData'])
-				if ('lt_uin' in retjson) and ('first_authorization' in retjson) and (retjson['first_authorization']==1):
-					return {'uin':int(retjson['lt_uin']),'time':message.value['serTime']}
-				else:
-					print retjson['first_authorization']
+				if ('lt_uin' in retjson) and ('first_authorization' in retjson) and ('auth_origin' in retjson):
+					return {'mode':retjson['first_authorization'],'source':int(retjson['auth_origin']),'uin':int(retjson['lt_uin']),'time':message.value['serTime']}
 		elif message.value['eventid'] == 100154:
 			if 'retData' in message.value['content']:
 				retjson=json.JSONDecoder().decode(message.value['content']['retData'])
 				if 'lt_uin' in retjson:
-					return {'uin':int(retjson['lt_uin']),'time':message.value['serTime']}
+					return {'mode':2,'source':99,'uin':int(retjson['lt_uin']),'time':message.value['serTime']}
 	return None
 
 
@@ -85,10 +88,18 @@ def Split():
 		ret = GetRegUinInfo(message)
 		if ret==None:
 			continue
+		print ret
 		try:
-			sqlstr = "update suibo_user_info set regtime='%s' where uin = %d" % (ret['time'],ret['uin'])
+			if ret['mode'] >0:
+				sqlstr = "update suibo_user_info set regtime='%s',login_type=%d where uin = %d" % (ret['time'],ret['source'],ret['uin'])
+			else:
+				sqlstr = "update suibo_user_info set login_type=%d where uin = %d" % (ret['source'],ret['uin'])
+
 			if savedbsqlalchemy(sqlstr) == 0:
-				sqlstr = "insert into suibo_user_info(regtime,uin) values('%s',%d)" % (ret['time'],ret['uin'])
+				if ret['mode'] >0:
+					sqlstr = "insert into suibo_user_info(regtime,uin,login_type) values('%s',%d,%d)" % (ret['time'],ret['uin'],ret['source'])
+				else:
+					sqlstr = "insert into suibo_user_info(uin,login_type) values(%d,%d)" % (ret['uin'],ret['source'])
 				savedbsqlalchemy(sqlstr)
 		except Exception, e:
 			print Exception,":",e
