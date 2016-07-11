@@ -60,19 +60,22 @@ def savedbsqlalchemy(sql):
 # source: 表示登录来源,99表示手机
 # uin: 用户
 # time: 表示LOG发生的时间
+# cid :表示来源的设备
 def GetRegUinInfo(message):
 	#得到注册时间
-	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value):
-		if message.value['eventid'] == 10025:
-			if 'retData' in message.value['content']:
-				retjson=json.JSONDecoder().decode(message.value['content']['retData'])
-				if ('lt_uin' in retjson) and ('first_authorization' in retjson) and ('auth_origin' in retjson):
-					return {'mode':retjson['first_authorization'],'source':int(retjson['auth_origin']),'uin':int(retjson['lt_uin']),'time':message.value['serTime']}
-		elif message.value['eventid'] == 100154:
-			if 'retData' in message.value['content']:
-				retjson=json.JSONDecoder().decode(message.value['content']['retData'])
-				if 'lt_uin' in retjson:
-					return {'mode':2,'source':99,'uin':int(retjson['lt_uin']),'time':message.value['serTime']}
+	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value) and ('requestData' in message.value['content']) and ('clientId' in message.value['content']['requestData']):
+		cid = message.value['content']['requestData']['clientId']
+		if (cid == 'quokka_ios') or (cid == 'quokka_android'):
+			if message.value['eventid'] == 10025:
+				if 'retData' in message.value['content']:
+					retjson=json.JSONDecoder().decode(message.value['content']['retData'])
+					if ('lt_uin' in retjson) and ('first_authorization' in retjson) and ('auth_origin' in retjson):
+						return {'mode':retjson['first_authorization'],'source':int(retjson['auth_origin']),'uin':int(retjson['lt_uin']),'time':message.value['serTime'],'cid':cid}
+			elif message.value['eventid'] == 100154:
+				if 'retData' in message.value['content']:
+					retjson=json.JSONDecoder().decode(message.value['content']['retData'])
+					if 'lt_uin' in retjson:
+						return {'mode':2,'source':99,'uin':int(retjson['lt_uin']),'time':message.value['serTime'],'cid':cid}
 	return None
 
 
