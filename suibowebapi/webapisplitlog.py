@@ -69,8 +69,8 @@ def GetRegUinInfo(message):
 			if message.value['eventid'] == 10025:
 				if 'retData' in message.value['content']:
 					retjson=json.JSONDecoder().decode(message.value['content']['retData'])
-					if ('lt_uin' in retjson) and ('first_authorization' in retjson) and ('auth_origin' in retjson):
-						return {'mode':retjson['first_authorization'],'source':int(retjson['auth_origin']),'uin':int(retjson['lt_uin']),'time':message.value['serTime'],'cid':cid}
+					if ('lt_uin' in retjson) and ('first_authorization' in retjson) and ('source' in message.value['content']['requestData']):
+						return {'mode':retjson['first_authorization'],'source':int(message.value['content']['requestData']['source']),'uin':int(retjson['lt_uin']),'time':message.value['serTime'],'cid':cid}
 			elif message.value['eventid'] == 100154:
 				if 'retData' in message.value['content']:
 					retjson=json.JSONDecoder().decode(message.value['content']['retData'])
