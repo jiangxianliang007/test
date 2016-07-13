@@ -136,7 +136,7 @@ def Split():
 			root.warn(e)
 		if sqlstr!=None:
 			savedbsqlalchemy(sqlstr)
-			print sqlstr
+			#print sqlstr
 
 
 def main():
