@@ -10,8 +10,25 @@ import re
 import MySQLdb
 import sqlalchemy
 import datetime
+import logging
+import logging.handlers
+from logging.handlers import TimedRotatingFileHandler
+
 session=None
 kafka_hosts=[]
+
+if not os.path.exists('./logs/suibowebapi'):
+	os.makedirs('./logs/suibowebapi')
+level = logging.INFO  
+format = '%(asctime)s %(levelname)s %(module)s.%(funcName)s Line:%(lineno)d %(message)s'  
+hdlr = TimedRotatingFileHandler("./logs/suibowebapi/suibowebapi.log","D")  
+fmt = logging.Formatter(format)  
+hdlr.setFormatter(fmt)  
+root = logging.getLogger()
+root.addHandler(hdlr)  
+root.setLevel(level)
+
+
 def InitialDB():
 	global kafka_hosts
 	cf = ConfigParser.ConfigParser()
@@ -36,6 +53,7 @@ def InitialDB():
 		session.execute("SET NAMES 'utf8mb4'")
 	except Exception, e:
 		print Exception,":",e
+		root.warn(e)
 		exit(0)
 
 def  CloseDB():
@@ -53,6 +71,7 @@ def savedbsqlalchemy(sql):
 		return result.rowcount
 	except Exception, e:
 		print Exception,":",e
+		root.warn(e)
 		return False
 
 #返回 {mode,source,uin,time}
@@ -78,7 +97,63 @@ def GetRegUinInfo(message):
 						return {'mode':2,'source':99,'uin':int(retjson['lt_uin']),'time':message.value['serTime'],'cid':cid}
 	return None
 
+def SplitRegLoginSql(message):
+	insertsql = None
+	updatesql = None
+	sqllist = {}
+	ret = GetRegUinInfo(message)
+	if ret == None:
+		return sqllist
+	if ret['mode'] >0:
+		insertsql = "update suibo_user_info set regtime='%s',login_type=%d where uin = %d" % (ret['time'],ret['source'],ret['uin'])
+	else:
+		insertsql = "update suibo_user_info set login_type=%d where uin = %d" % (ret['source'],ret['uin'])
 
+	if ret['mode'] >0:
+		updatesql = "insert into suibo_user_info(regtime,uin,login_type) values('%s',%d,%d)" % (ret['time'],ret['uin'],ret['source'])
+	else:
+		updatesql = "insert into suibo_user_info(uin,login_type) values(%d,%d)" % (ret['uin'],ret['source'])
+	sqllist['insert'] = insertsql
+	sqllist['update'] = updatesql
+	return sqllist
+
+
+
+#解析紅包分享 還沒有加MAC功能
+def splitHongBao(message):
+	sqllist = {}
+	sqlstr = None
+	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value)  \
+		and ('requestData' in message.value['content']) and ('clientId' in message.value['content']['requestData']) and ('uin' in message.value['content']['requestData'])\
+		and ('nickname' in message.value['content']['requestData']) and ('userIp' in message.value['content']) \
+		and ('clientChannel' in message.value['content']['requestData']) and ('flag' in message.value['content']['requestData']) \
+		and ('clientVer' in message.value['content']['requestData']) and ('share_url' in message.value['content']['requestData']):
+		if (message.value['eventid'] == 100121) and ('hongbao/share.html' in message.value['content']['requestData']['share_url']):
+			uin = int(message.value['content']['requestData']['uin'])
+			date = message.value['serTime']
+			date = date.replace('/','-')
+			nick = message.value['content']['requestData']['nickname']
+			ip = message.value['content']['userIp']
+			flag = int(message.value['content']['requestData']['flag'])
+			channel = message.value['content']['requestData']['clientChannel']
+			clientver = message.value['content']['requestData']['clientVer']
+			cid = message.value['content']['requestData']['clientId']
+			sqlstr = "insert into hongbao_shareuin_info(tjdate,uin,nick,ip,flag,client_channel,client,client_ver)" \
+			 		 " values('%s',%d,'%s','%s',%d,'%s','%s','%s')"%(date,uin,nick,ip,flag,channel,cid,clientver)
+
+	sqllist['insert'] = sqlstr
+	return sqllist		
+
+#能夠析的東西加在這裡
+def allowSplit(message):
+	eid = -1
+	if ('eventid' in message.value):
+		eid = int(message.value['eventid'])
+	else:
+		return False
+	if eid == 100121 or eid == 100154 or eid == 10025:
+		return True
+	return False
 
 def Split():
 	global kafka_hosts
@@ -87,25 +162,20 @@ def Split():
                          client_id="suibwebapi",
                          bootstrap_servers=kafka_hosts,value_deserializer=lambda m: json.loads(m.decode('utf-8')),auto_offset_reset="earliest", enable_auto_commit=True)
 	for message in consumer:
-		sqlstr=""
-		ret = GetRegUinInfo(message)
-		if ret==None:
+		if not allowSplit(message):
 			continue
-		print ret
-		try:
-			if ret['mode'] >0:
-				sqlstr = "update suibo_user_info set regtime='%s',login_type=%d where uin = %d" % (ret['time'],ret['source'],ret['uin'])
-			else:
-				sqlstr = "update suibo_user_info set login_type=%d where uin = %d" % (ret['source'],ret['uin'])
-
-			if savedbsqlalchemy(sqlstr) == 0:
-				if ret['mode'] >0:
-					sqlstr = "insert into suibo_user_info(regtime,uin,login_type) values('%s',%d,%d)" % (ret['time'],ret['uin'],ret['source'])
-				else:
-					sqlstr = "insert into suibo_user_info(uin,login_type) values(%d,%d)" % (ret['uin'],ret['source'])
-				savedbsqlalchemy(sqlstr)
-		except Exception, e:
-			print Exception,":",e
+		sqllist = SplitRegLoginSql(message)
+		#print sqllist
+		if sqllist.has_key('insert') and sqllist['insert']!= None:
+			if savedbsqlalchemy(sqllist['insert']) == 0:
+				if sqllist.has_key('update') and sqllist['update']!=None:
+					savedbsqlalchemy(sqllist['update'])
+			continue
+		
+		sqllist = splitHongBao(message)
+		if sqllist.has_key('insert') and sqllist['insert']!=None:
+			savedbsqlalchemy(sqllist['insert'])
+			continue
 		
 	
 def main():
