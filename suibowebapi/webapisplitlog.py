@@ -10,6 +10,7 @@ import re
 import MySQLdb
 import sqlalchemy
 import datetime
+import time
 import logging
 import logging.handlers
 from logging.handlers import TimedRotatingFileHandler
@@ -117,6 +118,20 @@ def SplitRegLoginSql(message):
 	sqllist['update'] = updatesql
 	return sqllist
 
+#解析改名字
+def splitChangNick(message):
+	sqllist = {}
+	insertsql = None
+	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value) and ('requestData' in message.value['content']) and ('clientId' in message.value['content']['requestData']) \
+		and ('nick' in message.value['content']['requestData']) and ('uin' in message.value['content']['requestData']) and ('userIp' in message.value['content']):
+		cid = message.value['content']['requestData']['clientId']
+		if (cid == 'quokka_ios') or (cid == 'quokka_android'):
+			if message.value['eventid'] == 100102:
+				tablename= "suibo_user_action_" + time.strftime("%Y%m", time.localtime())
+				insertsql = "insert into %s(action_time,uin,flag,ip) values('%s',%d,%d,'%s')" %\
+							(tablename,message.value['serTime'],int(message.value['content']['requestData']['uin']),6,message.value['content']['requestData']['nick'])
+	sqllist['insert'] = insertsql
+	return sqllist
 
 
 #解析紅包分享 還沒有加MAC功能
@@ -151,7 +166,7 @@ def allowSplit(message):
 		eid = int(message.value['eventid'])
 	else:
 		return False
-	if eid == 100121 or eid == 100154 or eid == 10025:
+	if eid == 100121 or eid == 100154 or eid == 10025 or eid == 100102:
 		return True
 	return False
 
@@ -173,6 +188,11 @@ def Split():
 			continue
 		
 		sqllist = splitHongBao(message)
+		if sqllist.has_key('insert') and sqllist['insert']!=None:
+			savedbsqlalchemy(sqllist['insert'])
+			continue
+
+		sqllist = splitChangNick(message)
 		if sqllist.has_key('insert') and sqllist['insert']!=None:
 			savedbsqlalchemy(sqllist['insert'])
 			continue
