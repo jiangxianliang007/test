@@ -1,6 +1,8 @@
 #coding=utf-8
 #!/usr/bin/ python
+
 import string, os, sys
+sys.path.append('../comm')
 from kafka import KafkaConsumer
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -14,10 +16,10 @@ import time
 import logging
 import logging.handlers
 from logging.handlers import TimedRotatingFileHandler
-
+from EventsDefine import EvensIDS
+from EventsDefine import LoginType
 session=None
 kafka_hosts=[]
-
 if not os.path.exists('./logs/suibowebapi'):
 	os.makedirs('./logs/suibowebapi')
 level = logging.INFO  
@@ -47,7 +49,7 @@ def InitialDB():
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
 	global session
 	DB_CONNECT_STRING = "mysql+mysqldb://%s:%s@%s:%s/imsuibo?charset=utf8" % (db_user,db_pass,db_host,db_port) 
-	engine = create_engine(DB_CONNECT_STRING, echo=False)
+	engine = create_engine(DB_CONNECT_STRING, echo=True)
 	DB_Session = sessionmaker(bind=engine)
 	session = DB_Session()
 	try:
@@ -101,6 +103,7 @@ def GetRegUinInfo(message):
 def SplitRegLoginSql(message):
 	insertsql = None
 	updatesql = None
+	eventsql = None
 	sqllist = {}
 	ret = GetRegUinInfo(message)
 	if ret == None:
@@ -114,14 +117,22 @@ def SplitRegLoginSql(message):
 		updatesql = "insert into suibo_user_info(regtime,uin,login_type) values('%s',%d,%d)" % (ret['time'],ret['uin'],ret['source'])
 	else:
 		updatesql = "insert into suibo_user_info(uin,login_type) values(%d,%d)" % (ret['uin'],ret['source'])
+	commentstr = None
+	if ret['mode'] >0:
+		commentstr = u"第一次%s %s" % (EvensIDS.GetEventName(EvensIDS.EVENT_LOGIN_ID),LoginType.GetName(ret['source']))
+	else:
+		commentstr = "%s %s" % (EvensIDS.GetEventName(EvensIDS.EVENT_LOGIN_ID),LoginType.GetName(ret['source']))
+	eventsql=EvensIDS.GetEventSql(EvensIDS.EVENT_LOGIN_ID,ret['uin'],ret['time'],commentstr)
 	sqllist['insert'] = insertsql
 	sqllist['update'] = updatesql
+	sqllist['event'] = eventsql
 	return sqllist
 
 #解析改名字
 def splitChangNick(message):
 	sqllist = {}
 	insertsql = None
+	eventstr = None
 	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value) and ('requestData' in message.value['content']) and ('clientId' in message.value['content']['requestData']) \
 		and ('nick' in message.value['content']['requestData']) and ('uin' in message.value['content']['requestData']) and ('userIp' in message.value['content']):
 		cid = message.value['content']['requestData']['clientId']
@@ -130,7 +141,10 @@ def splitChangNick(message):
 				tablename= "suibo_user_action_" + time.strftime("%Y%m", time.localtime())
 				insertsql = "insert into %s(action_time,uin,flag,ip) values('%s',%d,%d,'%s')" %\
 							(tablename,message.value['serTime'],int(message.value['content']['requestData']['uin']),6,message.value['content']['requestData']['nick'])
+				commentstr = u"%s %s" % (EvensIDS.GetEventName(EvensIDS.EVENT_CHANGENAME_ID),message.value['content']['requestData']['nick'])
+				eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_CHANGENAME_ID,message.value['content']['requestData']['uin'],message.value['serTime'],commentstr)
 	sqllist['insert'] = insertsql
+	sqllist['event'] = eventstr
 	return sqllist
 
 
@@ -138,6 +152,8 @@ def splitChangNick(message):
 def splitHongBao(message):
 	sqllist = {}
 	sqlstr = None
+	eventsql = None
+	eventstr = None
 	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value)  \
 		and ('requestData' in message.value['content']) and ('clientId' in message.value['content']['requestData']) and ('uin' in message.value['content']['requestData'])\
 		and ('nickname' in message.value['content']['requestData']) and ('userIp' in message.value['content']) \
@@ -155,8 +171,10 @@ def splitHongBao(message):
 			cid = message.value['content']['requestData']['clientId']
 			sqlstr = "insert into hongbao_shareuin_info(tjdate,uin,nick,ip,flag,client_channel,client,client_ver)" \
 			 		 " values('%s',%d,'%s','%s',%d,'%s','%s','%s')"%(date,uin,nick,ip,flag,channel,cid,clientver)
-
+			commentstr = u"%s" % (EvensIDS.GetEventName(EvensIDS.EVENT_HONGBAO_ID))
+			eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_HONGBAO_ID,uin,date,commentstr)
 	sqllist['insert'] = sqlstr
+	sqllist['event'] = eventstr
 	return sqllist		
 
 #能夠析的東西加在這裡
@@ -185,18 +203,26 @@ def Split():
 			if savedbsqlalchemy(sqllist['insert']) == 0:
 				if sqllist.has_key('update') and sqllist['update']!=None:
 					savedbsqlalchemy(sqllist['update'])
+			if sqllist.has_key('event') and sqllist['event']!=None:
+				print sqllist['event']
+				savedbsqlalchemy(sqllist['event'])
 			continue
-		
+
 		sqllist = splitHongBao(message)
 		if sqllist.has_key('insert') and sqllist['insert']!=None:
 			savedbsqlalchemy(sqllist['insert'])
+			if sqllist.has_key('event') and sqllist['event']!=None:
+				savedbsqlalchemy(sqllist['event'])
+				print sqllist['event']
 			continue
 
 		sqllist = splitChangNick(message)
 		if sqllist.has_key('insert') and sqllist['insert']!=None:
 			savedbsqlalchemy(sqllist['insert'])
+			if sqllist.has_key('event') and sqllist['event']!=None:
+				print sqllist['event']
+				savedbsqlalchemy(sqllist['event'])
 			continue
-		
 	
 def main():
 	InitialDB()
