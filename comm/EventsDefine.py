@@ -7,6 +7,8 @@ class EvensIDS(object):
 	EVENT_HONGBAO_ID = 3
 	EVENT_LOGINCHAT_ID = 4
 	EVENT_SENDGIFT_ID = 5
+	EVENT_LOGOUT_ID = 6
+	EVENT_TEMINATEVIDEO_ID = 7
 	@staticmethod
 	def GetEventName(ntype):
 		if ntype == EvensIDS.EVENT_CHANGENAME_ID:
@@ -19,6 +21,10 @@ class EvensIDS(object):
 			return u"登录直播房间:"
 		elif ntype == EvensIDS.EVENT_SENDGIFT_ID:
 			return u"送礼:"
+		elif ntype == EvensIDS.EVENT_LOGOUT_ID:
+			return u"退出房间:"
+		elif ntype == EvensIDS.EVENT_TEMINATEVIDEO_ID:
+			return u"结束直播:"
 
 	@staticmethod
 	def GetEventSql(neid,nuin,sdate,scommnet):

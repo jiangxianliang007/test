@@ -16,6 +16,7 @@ import logging.handlers
 from logging.handlers import TimedRotatingFileHandler
 from EventsDefine import EvensIDS
 from EventsDefine import LoginType
+import time
 session=None
 kafka_hosts=[]
 if not os.path.exists('./logs/suibochat'):
@@ -104,6 +105,8 @@ def splitChat(message):
 	sqllist['insert'] = insertsql
 	return sqllist
 
+
+
 #解析登陸
 def splitLL(message):
 	insertsql = None
@@ -124,8 +127,46 @@ def splitLL(message):
 	sqllist['event'] = eventsql
 	return sqllist
 
+#解析出房间
+def splitLO(message):
+	insertsql = None
+	eventsql = None
+	sqllist = {}
+	regstr = '(?P<date>\d+/\d+/\d+\s+\d+:\d+:\d+)\|(?:\s+type:suibo\s+version:\d+.\d+.\d+.\d+\s+module:LOG_OUT_ROOM\s+eventid:257\s+pid:1\s+servid:\d+\s+roomid:)'\
+			'(?P<roomid>\d+)(?:\s+uin:)(?P<uin>\d+)(?:\s+ver:\d+\s+ip:\d+.\d+.\d+.\d+\s+port:\d+\s+proxyIp:\d+.\d+.\d+.\d+\s+proxyPort:\d+\s+mac:[0-9a-zA-Z]{0,40})'\
+			'(?:\s+startTime:\d+-\d+-\d+\s+\d+:\d+:\d+\s+endTime:\d+-\d+-\d+\s+\d+:\d+:\d+\s+keepTime:)(?P<time>\d+)'
+	pattern =re.compile(regstr)
+	match = pattern.search(message.value['message'])
+	if match:
+		tablename= "suibo_usr_logout_" + time.strftime("%Y%m", time.localtime())
+		insertsql = "insert into %s(date,uin,roomid,vid,time) values('%s',%d,%d,'%s',%d)"%\
+					(tablename,match.group('date'),int(match.group('uin')),int(match.group('roomid')),"",int(match.group('time')))
+		commentstr = u"%s房间号:%d,观看时长:%d小时%d分%d秒" % (EvensIDS.GetEventName(EvensIDS.EVENT_LOGOUT_ID),int(match.group('roomid')),int(match.group('time'))/3600,int(match.group('time'))/60,int(match.group('time'))%60)
+		eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_LOGOUT_ID,int(match.group('uin')),match.group('date'),commentstr)
+	sqllist['insert'] = insertsql
+	sqllist['event'] = eventsql
+	return 	sqllist
 
-		
+def  splitTerminateVideo(message):
+	insertsql = None
+	eventsql = None
+	sqllist = {}
+	regstr = '(?P<date>\d+/\d+/\d+\s+\d+:\d+:\d+)\|(?:\s+roomid=)(?P<roomid>\d+)(?:\s+update\s+user\s+vid\s+)(?P<vid>\d+_\d+)(?:\s+viewNum=)(?P<viewnum>\d+)(?:\s+viewTime=)(?P<viewtime>\d+)(?:\s+duration\s+)(?P<duration>\d+)'\
+			'(?:\s+laudCount\s+)(?P<laudcount>\d+)(?:\s+vState\s+)(?P<vstate>\d+)(?:\s+webCurrNum=\d+\s+currNum=)(?P<currnum>\d+)'
+	pattern =re.compile(regstr)
+	match = pattern.search(message.value['message'])
+	if match:
+		if (int(match.group('vstate')) == 1) or (int(match.group('vstate'))==5):
+			tablename= "suibo_usr_closevideo_" + time.strftime("%Y%m", time.localtime())
+			insertsql = "insert into %s(date,vid,viewnum,laudcount) values('%s','%s',%d,%d)"%\
+					(tablename,match.group('date'),match.group('vid'),int(match.group('viewnum')),int(match.group('laudcount')))
+			commentstr = u"%svid:%s,观看人数:%d,点赞总数:%d" % (EvensIDS.GetEventName(EvensIDS.EVENT_TEMINATEVIDEO_ID),match.group('vid'),int(match.group('viewnum')),int(match.group('laudcount')))
+			vidtemplst = match.group('vid').split('_')
+			eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_TEMINATEVIDEO_ID,int(vidtemplst[0]),match.group('date'),commentstr)
+	sqllist['insert'] = insertsql
+	sqllist['event'] = eventsql
+	return 	sqllist
+
 def Split():
 	global kafka_hosts
 	consumer = KafkaConsumer('suiboltlog',
@@ -146,6 +187,20 @@ def Split():
 				savedbsqlalchemy(sqllist['event'])
 			continue
 		sqllist = splitLL(message)
+		if sqllist.has_key('insert') and sqllist['insert']!= None:
+			savedbsqlalchemy(sqllist['insert'])
+			if sqllist.has_key('event') and sqllist['event']!=None:
+				savedbsqlalchemy(sqllist['event'])
+			continue
+
+		sqllist = splitLO(message)
+		if sqllist.has_key('insert') and sqllist['insert']!= None:
+			savedbsqlalchemy(sqllist['insert'])
+			if sqllist.has_key('event') and sqllist['event']!=None:
+				savedbsqlalchemy(sqllist['event'])
+			continue
+
+		sqllist = splitTerminateVideo(message)
 		if sqllist.has_key('insert') and sqllist['insert']!= None:
 			savedbsqlalchemy(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
