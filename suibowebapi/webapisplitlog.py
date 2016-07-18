@@ -1,5 +1,5 @@
 #coding=utf-8
-#!/usr/bin/ python
+#!/usr/bin/python
 
 import string, os, sys
 sys.path.append('../comm')
@@ -204,7 +204,7 @@ def Split():
 				if sqllist.has_key('update') and sqllist['update']!=None:
 					savedbsqlalchemy(sqllist['update'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
-				print sqllist['event']
+				#print sqllist['event']
 				savedbsqlalchemy(sqllist['event'])
 			continue
 
@@ -213,14 +213,14 @@ def Split():
 			savedbsqlalchemy(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
 				savedbsqlalchemy(sqllist['event'])
-				print sqllist['event']
+				#print sqllist['event']
 			continue
 
 		sqllist = splitChangNick(message)
 		if sqllist.has_key('insert') and sqllist['insert']!=None:
 			savedbsqlalchemy(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
-				print sqllist['event']
+				#print sqllist['event']
 				savedbsqlalchemy(sqllist['event'])
 			continue
 	

@@ -17,6 +17,7 @@ from logging.handlers import TimedRotatingFileHandler
 from EventsDefine import EvensIDS
 from EventsDefine import LoginType
 from tools import SuiboGetIP
+from tools import GetTimeStr
 import time
 session=None
 kafka_hosts=[]
@@ -123,7 +124,7 @@ def splitLL(message):
 		insertsql = "insert into suibo_room_login_info(tjdate,uin,roomid,devType,ip,mac,proxyip,loginSpan) values('%s',%d,%d,%d,'%s','%s','%s',%d)" %(match.group('date'),int(match.group('uin')),int(match.group('roomid')),int(match.group('devtype')),match.group('ip'),match.group('mac'),match.group('proxyip'),int(match.group('span')))
 		ipaddr = SuiboGetIP(match.group('ip'))
 		if ipaddr==None:
-			ipaddr = '未知地址'
+			ipaddr = u'未知地址'
 		commentstr = u"房间号:%d,登陆IP:%s %s" % (int(match.group('roomid')),match.group('ip'),ipaddr)
 		eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_LOGINCHAT_ID,int(match.group('uin')),match.group('date'),commentstr)
 	sqllist['insert'] = insertsql
@@ -144,7 +145,7 @@ def splitLO(message):
 		tablename= "suibo_usr_logout_" + time.strftime("%Y%m", time.localtime())
 		insertsql = "insert into %s(date,uin,roomid,vid,time) values('%s',%d,%d,'%s',%d)"%\
 					(tablename,match.group('date'),int(match.group('uin')),int(match.group('roomid')),"",int(match.group('time')))
-		commentstr = u"房间号:%d,观看时长:%d小时%d分%d秒" % (int(match.group('roomid')),int(match.group('time'))/3600,int(match.group('time'))/60,int(match.group('time'))%60)
+		commentstr = u"房间号:%d,观看时长:%s" % (int(match.group('roomid')),GetTimeStr(match.group('time')))
 		eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_LOGOUT_ID,int(match.group('uin')),match.group('date'),commentstr)
 	sqllist['insert'] = insertsql
 	sqllist['event'] = eventsql
@@ -163,9 +164,8 @@ def  splitTerminateVideo(message):
 			tablename= "suibo_usr_closevideo_" + time.strftime("%Y%m", time.localtime())
 			insertsql = "insert into %s(date,vid,viewnum,laudcount,duration) values('%s','%s',%d,%d,%d)"%\
 					(tablename,match.group('date'),match.group('vid'),int(match.group('viewnum')),int(match.group('laudcount')),int(match.group('duration')))
-			commentstr = u"vid:%s,开播时长:%d时%d分%d秒,累积观看时长:%d时%d分%d秒,总观看人数:%d,总点赞数:%d" % \
-						(match.group('vid'),\
-						int(match.group('duration'))/3600,int(match.group('duration'))/60,int(match.group('duration'))%60,int(match.group('viewtime'))/3600,int(match.group('viewtime'))/60,int(match.group('viewtime'))%60,\
+			commentstr = u"vid:%s,开播时长:%s,累积观看时长:%s,总观看人数:%d,总点赞数:%d" % \
+						(match.group('vid'),GetTimeStr(match.group('duration')),GetTimeStr(match.group('viewtime')),\
 						int(match.group('viewnum')),int(match.group('laudcount')))
 			vidtemplst = match.group('vid').split('_')
 			eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_TEMINATEVIDEO_ID,int(vidtemplst[0]),match.group('date'),commentstr)

@@ -1,5 +1,6 @@
 #coding=utf-8
-#!/usr/bin/ pythondef
+#!/usr/bin/python
+import string, os, sys
 import urllib2
 import json
 def SuiboGetIP(IPV4):
@@ -22,4 +23,15 @@ def SuiboGetIP(IPV4):
 				retstr += datadict['isp']
 	except Exception, e:
 		print Exception,e
+	return retstr
+
+def GetTimeStr(iseconds):
+	inseconds = int(iseconds)
+	hour = int(inseconds/3600)
+	if hour>0:
+		ntemp = inseconds - 3600 * hour
+		inseconds = ntemp
+	nsecond = int(inseconds%60)
+	minute = int(inseconds/60)
+	retstr = u'%d小时%d分钟%d秒'%(hour,minute,nsecond)
 	return retstr
