@@ -16,6 +16,7 @@ import logging.handlers
 from logging.handlers import TimedRotatingFileHandler
 from EventsDefine import EvensIDS
 from EventsDefine import LoginType
+from tools import SuiboGetIP
 import time
 session=None
 kafka_hosts=[]
@@ -87,8 +88,7 @@ def splitSendGift(message):
 	if match:
 		insertsql = "insert into suibo_room_sendgift_info(tjdate,roomid,srcUin,vid,dstUin,money,combo) values('%s',%d,%d,'%s',%d,%d,%d)"%\
 				(match.group('date'),int(match.group('roomid')),int(match.group('srcuin')),match.group('vid'),int(match.group('dstuin')),int(match.group('sendmoney')),int(match.group('combo')))
-		commentstr = u"%s在主播号%s送了%d乐豆,连击%d次"%(EvensIDS.GetEventName(EvensIDS.EVENT_SENDGIFT_ID),\
-					match.group('vid'),int(match.group('sendmoney')),int(match.group('combo')))
+		commentstr = u"在主播号%s送了%d乐豆,连击%d次"%(match.group('vid'),int(match.group('sendmoney')),int(match.group('combo')))
 		eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_SENDGIFT_ID,int(match.group('srcuin')),match.group('date'),commentstr)
 	sqllist['insert'] = insertsql
 	sqllist['event'] = eventsql
@@ -121,7 +121,10 @@ def splitLL(message):
 	match = pattern.search(message.value['message'])
 	if match:
 		insertsql = "insert into suibo_room_login_info(tjdate,uin,roomid,devType,ip,mac,proxyip,loginSpan) values('%s',%d,%d,%d,'%s','%s','%s',%d)" %(match.group('date'),int(match.group('uin')),int(match.group('roomid')),int(match.group('devtype')),match.group('ip'),match.group('mac'),match.group('proxyip'),int(match.group('span')))
-		commentstr = u"%s 房间号:%d" % (EvensIDS.GetEventName(EvensIDS.EVENT_LOGINCHAT_ID),int(match.group('roomid')))
+		ipaddr = SuiboGetIP(match.group('ip'))
+		if ipaddr==None:
+			ipaddr = '未知地址'
+		commentstr = u"房间号:%d,登陆IP:%s %s" % (int(match.group('roomid')),match.group('ip'),ipaddr)
 		eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_LOGINCHAT_ID,int(match.group('uin')),match.group('date'),commentstr)
 	sqllist['insert'] = insertsql
 	sqllist['event'] = eventsql
@@ -141,7 +144,7 @@ def splitLO(message):
 		tablename= "suibo_usr_logout_" + time.strftime("%Y%m", time.localtime())
 		insertsql = "insert into %s(date,uin,roomid,vid,time) values('%s',%d,%d,'%s',%d)"%\
 					(tablename,match.group('date'),int(match.group('uin')),int(match.group('roomid')),"",int(match.group('time')))
-		commentstr = u"%s房间号:%d,观看时长:%d小时%d分%d秒" % (EvensIDS.GetEventName(EvensIDS.EVENT_LOGOUT_ID),int(match.group('roomid')),int(match.group('time'))/3600,int(match.group('time'))/60,int(match.group('time'))%60)
+		commentstr = u"房间号:%d,观看时长:%d小时%d分%d秒" % (int(match.group('roomid')),int(match.group('time'))/3600,int(match.group('time'))/60,int(match.group('time'))%60)
 		eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_LOGOUT_ID,int(match.group('uin')),match.group('date'),commentstr)
 	sqllist['insert'] = insertsql
 	sqllist['event'] = eventsql
@@ -158,9 +161,12 @@ def  splitTerminateVideo(message):
 	if match:
 		if (int(match.group('vstate')) == 1) or (int(match.group('vstate'))==5):
 			tablename= "suibo_usr_closevideo_" + time.strftime("%Y%m", time.localtime())
-			insertsql = "insert into %s(date,vid,viewnum,laudcount) values('%s','%s',%d,%d)"%\
-					(tablename,match.group('date'),match.group('vid'),int(match.group('viewnum')),int(match.group('laudcount')))
-			commentstr = u"%svid:%s,观看人数:%d,点赞总数:%d" % (EvensIDS.GetEventName(EvensIDS.EVENT_TEMINATEVIDEO_ID),match.group('vid'),int(match.group('viewnum')),int(match.group('laudcount')))
+			insertsql = "insert into %s(date,vid,viewnum,laudcount,duration) values('%s','%s',%d,%d,%d)"%\
+					(tablename,match.group('date'),match.group('vid'),int(match.group('viewnum')),int(match.group('laudcount')),int(match.group('duration')))
+			commentstr = u"vid:%s,开播时长:%d时%d分%d秒,累积观看时长:%d时%d分%d秒,总观看人数:%d,总点赞数:%d" % \
+						(match.group('vid'),\
+						int(match.group('duration'))/3600,int(match.group('duration'))/60,int(match.group('duration'))%60,int(match.group('viewtime'))/3600,int(match.group('viewtime'))/60,int(match.group('viewtime'))%60,\
+						int(match.group('viewnum')),int(match.group('laudcount')))
 			vidtemplst = match.group('vid').split('_')
 			eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_TEMINATEVIDEO_ID,int(vidtemplst[0]),match.group('date'),commentstr)
 	sqllist['insert'] = insertsql

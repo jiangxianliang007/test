@@ -42,9 +42,4 @@ class  LoginType(object):
 		retstr = u'未知'
 		if LoginType.logintype.has_key(str(ntype)):
 			retstr =LoginType.logintype[str(ntype)]
-		else:
-			print ntype
 		return retstr
-
-
-		

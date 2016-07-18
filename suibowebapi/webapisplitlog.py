@@ -119,9 +119,9 @@ def SplitRegLoginSql(message):
 		updatesql = "insert into suibo_user_info(uin,login_type) values(%d,%d)" % (ret['uin'],ret['source'])
 	commentstr = None
 	if ret['mode'] >0:
-		commentstr = u"第一次%s %s" % (EvensIDS.GetEventName(EvensIDS.EVENT_LOGIN_ID),LoginType.GetName(ret['source']))
+		commentstr = u"第一次授权登陆,来源:%s" % (LoginType.GetName(ret['source']))
 	else:
-		commentstr = "%s %s" % (EvensIDS.GetEventName(EvensIDS.EVENT_LOGIN_ID),LoginType.GetName(ret['source']))
+		commentstr = u"来源:%s" % (LoginType.GetName(ret['source']))
 	eventsql=EvensIDS.GetEventSql(EvensIDS.EVENT_LOGIN_ID,ret['uin'],ret['time'],commentstr)
 	sqllist['insert'] = insertsql
 	sqllist['update'] = updatesql
@@ -141,7 +141,7 @@ def splitChangNick(message):
 				tablename= "suibo_user_action_" + time.strftime("%Y%m", time.localtime())
 				insertsql = "insert into %s(action_time,uin,flag,ip) values('%s',%d,%d,'%s')" %\
 							(tablename,message.value['serTime'],int(message.value['content']['requestData']['uin']),6,message.value['content']['requestData']['nick'])
-				commentstr = u"%s %s" % (EvensIDS.GetEventName(EvensIDS.EVENT_CHANGENAME_ID),message.value['content']['requestData']['nick'])
+				commentstr = u"%s" % (message.value['content']['requestData']['nick'])
 				eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_CHANGENAME_ID,message.value['content']['requestData']['uin'],message.value['serTime'],commentstr)
 	sqllist['insert'] = insertsql
 	sqllist['event'] = eventstr
@@ -171,7 +171,7 @@ def splitHongBao(message):
 			cid = message.value['content']['requestData']['clientId']
 			sqlstr = "insert into hongbao_shareuin_info(tjdate,uin,nick,ip,flag,client_channel,client,client_ver)" \
 			 		 " values('%s',%d,'%s','%s',%d,'%s','%s','%s')"%(date,uin,nick,ip,flag,channel,cid,clientver)
-			commentstr = u"%s" % (EvensIDS.GetEventName(EvensIDS.EVENT_HONGBAO_ID))
+			commentstr = EvensIDS.GetEventName(EvensIDS.EVENT_HONGBAO_ID)
 			eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_HONGBAO_ID,uin,date,commentstr)
 	sqllist['insert'] = sqlstr
 	sqllist['event'] = eventstr
