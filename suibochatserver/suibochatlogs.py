@@ -1,5 +1,5 @@
 #coding=utf-8
-#!/usr/bin/ python
+#!/usr/bin/python
 import string, os, sys
 sys.path.append('../comm')
 from kafka import KafkaConsumer
@@ -18,6 +18,7 @@ from EventsDefine import EvensIDS
 from EventsDefine import LoginType
 from tools import SuiboGetIP
 from tools import GetTimeStr
+from tabledefine import TableNameS
 import time
 session=None
 kafka_hosts=[]
@@ -87,8 +88,9 @@ def splitSendGift(message):
 	pattern = re.compile(regstr)
 	match = pattern.search(message.value['message'])
 	if match:
-		insertsql = "insert into suibo_room_sendgift_info(tjdate,roomid,srcUin,vid,dstUin,money,combo) values('%s',%d,%d,'%s',%d,%d,%d)"%\
-				(match.group('date'),int(match.group('roomid')),int(match.group('srcuin')),match.group('vid'),int(match.group('dstuin')),int(match.group('sendmoney')),int(match.group('combo')))
+		tablename = TableNameS.suibo_room_sendgift_info# + '_' + time.strftime("%Y%m", time.localtime())
+		insertsql = "insert into %s(tjdate,roomid,srcUin,vid,dstUin,money,combo) values('%s',%d,%d,'%s',%d,%d,%d)"%\
+				(tablename,match.group('date'),int(match.group('roomid')),int(match.group('srcuin')),match.group('vid'),int(match.group('dstuin')),int(match.group('sendmoney')),int(match.group('combo')))
 		commentstr = u"在主播号%s送了%d乐豆,连击%d次"%(match.group('vid'),int(match.group('sendmoney')),int(match.group('combo')))
 		eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_SENDGIFT_ID,int(match.group('srcuin')),match.group('date'),commentstr)
 	sqllist['insert'] = insertsql
@@ -102,7 +104,8 @@ def splitChat(message):
 	pattern = re.compile(regstr)
 	match = pattern.search(message.value['message'])
 	if match:
-		insertsql = "insert into suibo_room_liaot_info(tjdate,roomid,anchorUin,vid,srcUin,msg) values('%s',%d,%d,'%s',%d,'%s')" % (match.group('date'),int(match.group('roomid')),int(match.group('anchoruin')),match.group('vid'),int(match.group('srcuin')),match.group('text'))
+		tablename = TableNameS.suibo_room_liaot_info #+ '_' + time.strftime("%Y%m", time.localtime())
+		insertsql = "insert into %s(tjdate,roomid,anchorUin,vid,srcUin,msg) values('%s',%d,%d,'%s',%d,'%s')" % (tablename,match.group('date'),int(match.group('roomid')),int(match.group('anchoruin')),match.group('vid'),int(match.group('srcuin')),match.group('text'))
 	sqllist['insert'] = insertsql
 	return sqllist
 
@@ -121,7 +124,8 @@ def splitLL(message):
 	pattern = re.compile(regstr)
 	match = pattern.search(message.value['message'])
 	if match:
-		insertsql = "insert into suibo_room_login_info(tjdate,uin,roomid,devType,ip,mac,proxyip,loginSpan) values('%s',%d,%d,%d,'%s','%s','%s',%d)" %(match.group('date'),int(match.group('uin')),int(match.group('roomid')),int(match.group('devtype')),match.group('ip'),match.group('mac'),match.group('proxyip'),int(match.group('span')))
+		tablename = TableNameS.suibo_room_login_info# + '_' + time.strftime("%Y%m", time.localtime())
+		insertsql = "insert into %s(tjdate,uin,roomid,devType,ip,mac,proxyip,loginSpan) values('%s',%d,%d,%d,'%s','%s','%s',%d)" %(tablename,match.group('date'),int(match.group('uin')),int(match.group('roomid')),int(match.group('devtype')),match.group('ip'),match.group('mac'),match.group('proxyip'),int(match.group('span')))
 		ipaddr = SuiboGetIP(match.group('ip'))
 		if ipaddr==None:
 			ipaddr = u'未知地址'
@@ -142,7 +146,7 @@ def splitLO(message):
 	pattern =re.compile(regstr)
 	match = pattern.search(message.value['message'])
 	if match:
-		tablename= "suibo_usr_logout_" + time.strftime("%Y%m", time.localtime())
+		tablename= TableNameS.suibo_usr_logout + '_' + time.strftime("%Y%m", time.localtime())
 		insertsql = "insert into %s(date,uin,roomid,vid,time) values('%s',%d,%d,'%s',%d)"%\
 					(tablename,match.group('date'),int(match.group('uin')),int(match.group('roomid')),"",int(match.group('time')))
 		commentstr = u"房间号:%d,观看时长:%s" % (int(match.group('roomid')),GetTimeStr(match.group('time')))
@@ -161,7 +165,7 @@ def  splitTerminateVideo(message):
 	match = pattern.search(message.value['message'])
 	if match:
 		if (int(match.group('vstate')) == 1) or (int(match.group('vstate'))==5):
-			tablename= "suibo_usr_closevideo_" + time.strftime("%Y%m", time.localtime())
+			tablename= TableNameS.suibo_usr_closevideo + '_' + time.strftime("%Y%m", time.localtime())
 			insertsql = "insert into %s(date,vid,viewnum,laudcount,duration) values('%s','%s',%d,%d,%d)"%\
 					(tablename,match.group('date'),match.group('vid'),int(match.group('viewnum')),int(match.group('laudcount')),int(match.group('duration')))
 			commentstr = u"vid:%s,开播时长:%s,累积观看时长:%s,总观看人数:%d,总点赞数:%d" % \

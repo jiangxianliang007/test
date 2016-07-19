@@ -2,5 +2,9 @@
 	suibo_usr_logout_201607 :解析随播服务器，把用户退出房间存表，按月建表
 	suibo_usr_closevideo_201607 ：解析随播服务器，把用户关闭直播房间存表，按月建表
 	suibo_events_201607        ：存放WEB,随播服务器用户事件流水事件
-	suibo_room_liaot_info     ：随播服务器用户聊天原始数据
+
+
+	suibo_room_liaot_info_201607     ：随播服务器用户聊天原始数据,按月建表
+	suibo_room_sendgift_info_201607:  随播服务器用户刷花原始数据,按月建表
+	suibo_room_login_info_201607:  随播服务器用户有登陸数据,按月建表
         

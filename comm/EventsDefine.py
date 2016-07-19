@@ -1,5 +1,6 @@
 #coding=utf-8
 import time
+from tabledefine import TableNameS
 class EvensIDS(object):
 	#'事件类型说明'
 	EVENT_CHANGENAME_ID = 1
@@ -28,7 +29,7 @@ class EvensIDS(object):
 
 	@staticmethod
 	def GetEventSql(neid,nuin,sdate,scommnet):
-		tablename= "suibo_events_" + time.strftime("%Y%m", time.localtime())
+		tablename= TableNameS.suibo_events + '_' + time.strftime("%Y%m", time.localtime())
 		eventstr = "insert into %s (date,eid,uin,comment) values('%s',%d,%d,'%s') "%(tablename,sdate,int(neid),int(nuin),scommnet)
 		return eventstr
 
