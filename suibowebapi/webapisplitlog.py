@@ -18,6 +18,8 @@ import logging.handlers
 from logging.handlers import TimedRotatingFileHandler
 from EventsDefine import EvensIDS
 from EventsDefine import LoginType
+from tabledefine import TableNameS
+from EventsDefine import PayTypeName
 session=None
 kafka_hosts=[]
 if not os.path.exists('./logs/suibowebapi'):
@@ -49,7 +51,7 @@ def InitialDB():
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
 	global session
 	DB_CONNECT_STRING = "mysql+mysqldb://%s:%s@%s:%s/imsuibo?charset=utf8" % (db_user,db_pass,db_host,db_port) 
-	engine = create_engine(DB_CONNECT_STRING, echo=True)
+	engine = create_engine(DB_CONNECT_STRING, echo=False)
 	DB_Session = sessionmaker(bind=engine)
 	session = DB_Session()
 	try:
@@ -147,7 +149,96 @@ def splitChangNick(message):
 	sqllist['event'] = eventstr
 	return sqllist
 
+def splitWebBuy4100(message):
+	sqllist = {}
+	sqlstr = None
+	eventsql = None
+	eventstr = None
+	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value)  \
+		and ('uin' in message.value) and ('orderInfo' in message.value['content']):
+		orderjson = json.JSONDecoder().decode(message.value['content']['orderInfo'])
+		uin = int(message.value['uin'])
+		date = message.value['serTime']
+		date = date.replace('/','-')
+		money = 0
+		npaytype = ''
+		paytype = 0
+		if ('orderMoney' in message.value['content']):
+			money = message.value['content']['orderMoney']
+		if ('orderNum' in orderjson):
+			ordernum = orderjson['orderNum']
+		if ('pay_type' in orderjson):
+			npaytype = int(orderjson['pay_type'])
+		if message.value['eventid'] == 410000:
+			tablename = TableNameS.suibo_usr_buy + '_' + time.strftime("%Y%m", time.localtime())
+			sqlstr = "insert into %s(date,uin,cash,ordernum,gid,paytype)" \
+			 		 " values('%s',%d,%s,'%s','%s',%d)"%(tablename,date,uin,money,ordernum,orderjson['goods_id'],npaytype)
+			commentstr = u"充值:%s元,方式:%s,订单号:%s" % (money,PayTypeName.GetName(npaytype),ordernum)
+			eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_BUY_ID,uin,date,commentstr)
+	sqllist['insert'] = sqlstr
+	sqllist['event'] = eventstr
+	return sqllist		
 
+
+#解析購買
+def splitWebBuy(message):
+	sqllist = {}
+	sqlstr = None
+	eventsql = None
+	eventstr = None
+	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value)  \
+		and ('requestData' in message.value['content'])\
+		and  ('out_trade_no' in message.value['content']['requestData']) \
+		and ('body' in message.value['content']['requestData'])\
+		and ('price' in message.value['content']['requestData']):
+		if message.value['eventid']==10077:
+			bodyjoson=json.JSONDecoder().decode(message.value['content']['requestData']['body'])
+			if ('uin' in bodyjoson):
+				uin = int(bodyjoson['uin'])
+				date = message.value['serTime']
+				date = date.replace('/','-')
+				money = message.value['content']['retData']
+				ordernum = message.value['content']['requestData']['out_trade_no']
+				gid = bodyjoson['goodId']
+				tablename = TableNameS.suibo_usr_buy + '_' + time.strftime("%Y%m", time.localtime())
+				npaytype = 2
+				sqlstr = "insert into %s(date,uin,cash,ordernum,gid,paytype)" \
+			 		 " values('%s',%d,%s,'%s','%s',%d)"%(tablename,date,uin,money,ordernum, gid,npaytype)
+				commentstr = u"充值:%s元,方式:%s,订单号:%s" % (money,PayTypeName.GetName(npaytype),ordernum)
+				eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_BUY_ID,uin,date,commentstr)
+	sqllist['insert'] = sqlstr
+	sqllist['event'] = eventstr
+	return sqllist
+
+#解析購買
+def splitAppleBuy(message):
+	sqllist = {}
+	sqlstr = None
+	eventsql = None
+	eventstr = None
+	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value)  \
+		and ('requestData' in message.value['content']) and ('clientId' in message.value['content']['requestData']) and ('uin' in message.value['content']['requestData'])\
+		and ('clientChannel' in message.value['content']['requestData']) \
+		and ('clientVer' in message.value['content']['requestData']) and ('orderNum' in message.value['content']['requestData']) \
+		and ('retData' in message.value['content']) and ('goods_id' in message.value['content']['requestData']):
+		cid = message.value['content']['requestData']['clientId']
+		if (message.value['eventid'] == 10029) and (cid == 'quokka_ios' or cid == 'quokka_android'):
+			uin = int(message.value['content']['requestData']['uin'])
+			date = message.value['serTime']
+			date = date.replace('/','-')
+			channel = message.value['content']['requestData']['clientChannel']
+			clientver = message.value['content']['requestData']['clientVer']
+			money = (message.value['content']['retData'])
+			ordernum = message.value['content']['requestData']['orderNum']
+			tablename = TableNameS.suibo_usr_buy + '_' + time.strftime("%Y%m", time.localtime())
+			npaytype = 5
+			sqlstr = "insert into %s(date,uin,cash,channel,clientver,ordernum,gid,paytype)" \
+			 		 " values('%s',%d,%s,'%s','%s','%s','%s',%d)"%(tablename,date,uin,money,channel,clientver,ordernum,message.value['content']['requestData']['goods_id'],npaytype)
+			commentstr = u"充值:%s元,方式:%s,订单号:%s" % (money,PayTypeName.GetName(npaytype),ordernum)
+			eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_BUY_ID,uin,date,commentstr)
+	sqllist['insert'] = sqlstr
+	sqllist['event'] = eventstr
+	return sqllist		
 #解析紅包分享 還沒有加MAC功能
 def splitHongBao(message):
 	sqllist = {}
@@ -177,6 +268,26 @@ def splitHongBao(message):
 	sqllist['event'] = eventstr
 	return sqllist		
 
+def splitWebDrawMoney(message):
+	sqllist = {}
+	sqlstr = None
+	eventsql = None
+	eventstr = None
+	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value)  \
+		and ('requestData' in message.value['content']) and ('uin' in message.value['content']['requestData']) \
+		and ('money' in message.value['content']['requestData']):
+		if message.value['eventid'] == 310000:
+			date = message.value['serTime']
+			money = float(message.value['content']['requestData']['money'])
+			uin = message.value['content']['requestData']['uin']
+			tablename = TableNameS.suibo_drawmoney + '_' + time.strftime("%Y%m", time.localtime())
+			sqlstr = "insert into %s(date,uin,money)" \
+			 		 " values('%s',%d,%s)"%(tablename,date,int(uin),money)
+			commentstr = u"提现:%s元" % (money)
+			eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_DRAWMONEY_ID,uin,date,commentstr)
+	sqllist['insert'] = sqlstr
+	sqllist['event'] = eventstr
+	return sqllist		
 #能夠析的東西加在這裡
 def allowSplit(message):
 	eid = -1
@@ -184,7 +295,8 @@ def allowSplit(message):
 		eid = int(message.value['eventid'])
 	else:
 		return False
-	if eid == 100121 or eid == 100154 or eid == 10025 or eid == 100102:
+	if eid == 100121 or eid == 100154 or eid == 10025 or eid == 100102 or eid == 10029 or \
+	   eid == 10077 or eid ==410000 or eid == 310000:
 		return True
 	return False
 
@@ -217,6 +329,36 @@ def Split():
 			continue
 
 		sqllist = splitChangNick(message)
+		if sqllist.has_key('insert') and sqllist['insert']!=None:
+			savedbsqlalchemy(sqllist['insert'])
+			if sqllist.has_key('event') and sqllist['event']!=None:
+				#print sqllist['event']
+				savedbsqlalchemy(sqllist['event'])
+			continue
+
+		sqllist = splitAppleBuy(message)
+		if sqllist.has_key('insert') and sqllist['insert']!=None:
+			savedbsqlalchemy(sqllist['insert'])
+			if sqllist.has_key('event') and sqllist['event']!=None:
+				#print sqllist['event']
+				savedbsqlalchemy(sqllist['event'])
+			continue
+		sqllist = splitWebBuy(message)
+		if sqllist.has_key('insert') and sqllist['insert']!=None:
+			savedbsqlalchemy(sqllist['insert'])
+			if sqllist.has_key('event') and sqllist['event']!=None:
+				#print sqllist['event']
+				savedbsqlalchemy(sqllist['event'])
+			continue
+		sqllist = splitWebBuy4100(message)
+		if sqllist.has_key('insert') and sqllist['insert']!=None:
+			savedbsqlalchemy(sqllist['insert'])
+			if sqllist.has_key('event') and sqllist['event']!=None:
+				#print sqllist['event']
+				savedbsqlalchemy(sqllist['event'])
+			continue
+			
+		sqllist = splitWebDrawMoney(message)
 		if sqllist.has_key('insert') and sqllist['insert']!=None:
 			savedbsqlalchemy(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:

@@ -3,13 +3,16 @@ import time
 from tabledefine import TableNameS
 class EvensIDS(object):
 	#'事件类型说明'
-	EVENT_CHANGENAME_ID = 1
-	EVENT_LOGIN_ID = 2
-	EVENT_HONGBAO_ID = 3
-	EVENT_LOGINCHAT_ID = 4
-	EVENT_SENDGIFT_ID = 5
-	EVENT_LOGOUT_ID = 6
-	EVENT_TEMINATEVIDEO_ID = 7
+	EVENT_CHANGENAME_ID = 1 #更改昵称
+	EVENT_LOGIN_ID = 2		#授权登录
+	EVENT_HONGBAO_ID = 3	#红包分享
+	EVENT_LOGINCHAT_ID = 4  #登录直播房间
+	EVENT_SENDGIFT_ID = 5  #送礼:
+	EVENT_LOGOUT_ID = 6    #退出房间
+	EVENT_TEMINATEVIDEO_ID = 7#关掉直播
+	EVENT_BUY_ID = 8		#充值
+	EVENT_DRAWMONEY_ID = 9	#提现
+
 	@staticmethod
 	def GetEventName(ntype):
 		if ntype == EvensIDS.EVENT_CHANGENAME_ID:
@@ -24,8 +27,10 @@ class EvensIDS(object):
 			return u"送礼:"
 		elif ntype == EvensIDS.EVENT_LOGOUT_ID:
 			return u"退出房间:"
-		elif ntype == EvensIDS.EVENT_TEMINATEVIDEO_ID:
-			return u"结束直播:"
+		elif ntype == EvensIDS.EVENT_BUY_ID:
+			return u"充值:"
+		elif ntype == EvensIDS.EVENT_DRAWMONEY_ID:
+			return u"提现:"
 
 	@staticmethod
 	def GetEventSql(neid,nuin,sdate,scommnet):
@@ -44,3 +49,17 @@ class  LoginType(object):
 		if LoginType.logintype.has_key(str(ntype)):
 			retstr =LoginType.logintype[str(ntype)]
 		return retstr
+
+class PayTypeName(object):
+	@staticmethod
+	def GetName(ntype):
+		ntype = int(ntype)
+		if ntype ==1:
+			return u'财富通'
+		elif ntype == 2:
+			return u'支付宝'
+		elif ntype == 4:
+			return u'微信'
+		elif ntype == 5:
+			return u'Apple'
+		return ''

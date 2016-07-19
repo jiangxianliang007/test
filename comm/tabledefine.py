@@ -10,3 +10,6 @@ class TableNameS(object):
 	suibo_room_login_info = 'suibo_room_login_info'
 	suibo_usr_logout= 'suibo_usr_logout'
 	suibo_usr_closevideo = 'suibo_usr_closevideo'
+
+	suibo_usr_buy = 'suibo_usr_buy'
+	suibo_drawmoney = 'suibo_drawmoney'
