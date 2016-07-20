@@ -92,7 +92,7 @@ def splitWebDrawMoney(message):
 			tablename = TableNameS.suibo_drawmoney + '_' + time.strftime("%Y%m", time.localtime())
 			sqlstr = "insert into %s(date,uin,money)" \
 			 		 " values('%s',%d,%s)"%(tablename,date,int(uin),money)
-			commentstr = u"提现:%s元" % (money)
+			commentstr = u"申请提现:%s元" % (money)
 			eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_DRAWMONEY_ID,uin,date,commentstr)
 	sqllist['insert'] = sqlstr
 	sqllist['event'] = eventstr
