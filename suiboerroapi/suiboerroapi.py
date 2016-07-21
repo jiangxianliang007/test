@@ -125,6 +125,15 @@ def allowSplit(message):
 		eid = message.value['eventid']
 	else:
 		return False
+	if ( ('content' in message.value) and ('requestData' in message.value['content']) and \
+		('clientId' in message.value['content']['requestData']) ):
+		cid = message.value['content']['requestData']['clientId']
+		if (cid != 'quokka_ios') and (cid != 'quokka_android'):
+			return False
+	if ('orderFrom' in message.value['content']):
+		cid = message.value['content']['orderFrom']
+		if (cid != 'suibo'):
+			return False
 	if str(eid) in geidsdict:
 		return True
 	return False
