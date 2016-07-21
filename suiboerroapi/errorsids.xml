@@ -1,9 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <errors>
-<eid id ="10029" emailtitle="Apple充值出错" content="Apple充值出错"></eid>
+<eid id ="10029" emailtitle="Apple充值出错" content="Apple充值出错">
+</eid>
 <eid id ="410000" emailtitle="充值出错" content="充值出错"></eid>
-<eid id ="10025" emailtitle="授权登录出错" content="授权登录出错"></eid>
-<eid id ="10077" emailtitle="充值出错" content="充值出错"></eid>
+<eid id ="10025" emailtitle="授权登录出错" content="授权登录出错">
+<excludertcode>-100001</excludertcode>
+<excludertcode>-100004</excludertcode>
+<excludertcode>-100005</excludertcode>
+<excludertcode>-200705</excludertcode>
+<excludertcode>-200706</excludertcode>
+</eid>
+<eid id ="10077" emailtitle="充值出错" content="充值出错">
+</eid>
 <eid id ="100111" emailtitle="热门列表api出错" content="热门列表api出错"></eid>
 <eid id ="100169" emailtitle="商品列表api出错" content="商品列表api出错"></eid>
 <eid id ="100171" emailtitle="微信支付api出错" content="微信支付api出错"></eid>

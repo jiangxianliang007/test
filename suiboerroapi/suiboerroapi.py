@@ -43,6 +43,7 @@ class  ErrItem(object):
 		self.id = id
 		self.titile = titile
 		self.content = content
+		self.exclude = []
 
 class alertQueItem(object):
 	"""docstring for alertQueItem"""
@@ -59,9 +60,15 @@ def  readErrxml():
 		tree=ET.parse('errorsids.xml')
 		root = tree.getroot()
 		eids = root.getchildren()
-		for eid in eids:
-			item = ErrItem(eid.attrib['id'],eid.attrib['emailtitle'],eid.attrib['content'])
-			geidsdict[eid.attrib['id']] = item
+		for eiditem in eids:
+			eid = eiditem.attrib['id']
+			emailtitle = eiditem.attrib['emailtitle']
+			content = eiditem.attrib['content']
+			item = ErrItem(eid,emailtitle,content)
+			excls = eiditem.getchildren()
+			for retcode in excls:
+				item.exclude.append(retcode.text)
+			geidsdict[eiditem.attrib['id']] = item
 	except Exception, e:
 		print Exception,e
 	
@@ -128,7 +135,7 @@ def splitAlert(message):
 	date = ""
 	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value):
 		if ('retCode' in message.value['content']):
-		 	retcode = message.value['content']['retCode']
+		 	retcode = str(message.value['content']['retCode'])
 		if  ('retMsg' in message.value['content']):
 		 	retmsg = message.value['content']['retMsg']
 		return {'eid':message.value['eventid'],'date':message.value['serTime'],'code':retcode,'errmsg':retmsg}
@@ -151,11 +158,14 @@ def Split():
 			if ('errmsg' in ret) and ret['errmsg']!='':
 				content =  u'错误消息:' + ret['errmsg'] + ' '
 			if ('code' in ret):
-				content =  content + u'错误返回码:%d' % (ret['code'])
+				content =  content + u'错误返回码:%s' % (ret['code'])
+				if ret['code'] in geidsdict[str(message.value['eventid'])].exclude:
+					continue
 			if content=='':
 				content = geidsdict[str(message.value['eventid'])].content
 			content =  ret['date']+u' eventid:' + str(message.value['eventid']) + ' ' + content
 			#print content
+			#print  ret['date']
 			#logging.log
 			alertitem = alertQueItem(ret['date'],message.value['eventid'],content,subject)
 			emailque.put(alertitem)
