@@ -128,10 +128,11 @@ def splitAlert(message):
 	date = ""
 	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value):
 		if ('retCode' in message.value['content']):
-		 	retcode =message.value['content']['retCode']
+		 	retcode = message.value['content']['retCode']
 		if  ('retMsg' in message.value['content']):
 		 	retmsg = message.value['content']['retMsg']
-	return {'eid':message.value['eventid'],'date':message.value['serTime'],'code':retcode,'errmsg':retmsg}
+		return {'eid':message.value['eventid'],'date':message.value['serTime'],'code':retcode,'errmsg':retmsg}
+	return None
 
 def Split():
 	global kafka_hosts
@@ -150,10 +151,12 @@ def Split():
 			if ('errmsg' in ret) and ret['errmsg']!='':
 				content =  u'错误消息:' + ret['errmsg'] + ' '
 			if ('code' in ret):
-				content =  content + u'错误返回码:' + str(ret['code'])
+				content =  content + u'错误返回码:%d' % (ret['code'])
 			if content=='':
 				content = geidsdict[str(message.value['eventid'])].content
 			content =  ret['date']+u' eventid:' + str(message.value['eventid']) + ' ' + content
+			#print content
+			#logging.log
 			alertitem = alertQueItem(ret['date'],message.value['eventid'],content,subject)
 			emailque.put(alertitem)
 	

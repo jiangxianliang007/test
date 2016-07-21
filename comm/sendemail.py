@@ -4,16 +4,16 @@ import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
 def sendEmail(subject,tousrs,fromstr,msg):
-	sender = 'taolesoft@163.com'
+	sender = 'redmine@taolesoft.com'
 	smtpserver = 'smtp.exmail.qq.com'
-	username = 'taolesoft@163.com'
-	password = 'hztaole0575123'
+	username = 'redmine@taolesoft.com'
+	password = 'taole88'
 	msg = MIMEText(msg, 'plain', 'utf-8')
 	msg['Subject'] = Header(subject, 'utf-8')
 	msg['from'] = fromstr
 	msg['to'] = ",".join(tousrs)
 	smtp = smtplib.SMTP()
-	smtp.connect('smtp.163.com')
+	smtp.connect('smtp.exmail.qq.com')
 	smtp.login(username, password)
 	smtp.sendmail(sender, tousrs, msg.as_string())
 	smtp.quit()
