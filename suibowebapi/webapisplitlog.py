@@ -93,13 +93,14 @@ def GetRegUinInfo(message):
 			if message.value['eventid'] == 10025:
 				if 'retData' in message.value['content']:
 					retjson=json.JSONDecoder().decode(message.value['content']['retData'])
-					if ('lt_uin' in retjson) and ('first_authorization' in retjson) and ('source' in message.value['content']['requestData']):
-						return {'mode':retjson['first_authorization'],'source':int(message.value['content']['requestData']['source']),'uin':int(retjson['lt_uin']),'time':message.value['serTime'],'cid':cid}
+					if ('lt_uin' in retjson) and ('first_authorization' in retjson) and ('source' in message.value['content']['requestData']) and ('clientChannel' in message.value['content']['requestData']):
+						return {'mode':retjson['first_authorization'],'source':int(message.value['content']['requestData']['source']),'uin':int(retjson['lt_uin']),'time':message.value['serTime'],'cid':cid,\
+								'channel':message.value['content']['requestData']['clientChannel']}
 			elif message.value['eventid'] == 100154:
-				if 'retData' in message.value['content']:
+				if 'retData' in message.value['content'] and ('clientChannel' in message.value['content']['requestData']):
 					retjson=json.JSONDecoder().decode(message.value['content']['retData'])
 					if 'lt_uin' in retjson:
-						return {'mode':2,'source':99,'uin':int(retjson['lt_uin']),'time':message.value['serTime'],'cid':cid}
+						return {'mode':2,'source':99,'uin':int(retjson['lt_uin']),'time':message.value['serTime'],'cid':cid,'channel':message.value['content']['requestData']['clientChannel']}
 	return None
 
 def SplitRegLoginSql(message):
@@ -111,19 +112,19 @@ def SplitRegLoginSql(message):
 	if ret == None:
 		return sqllist
 	if ret['mode'] >0:
-		insertsql = "update suibo_user_info set regtime='%s',login_type=%d where uin = %d" % (ret['time'],ret['source'],ret['uin'])
+		insertsql = "update suibo_user_info set regtime='%s',login_type=%d,clientchannel='%s' where uin = %d" % (ret['time'],ret['source'],ret['channel'],ret['uin'])
 	else:
-		insertsql = "update suibo_user_info set login_type=%d where uin = %d" % (ret['source'],ret['uin'])
+		insertsql = "update suibo_user_info set login_type=%d,clientchannel='%s' where uin = %d" % (ret['source'],ret['channel'],ret['uin'])
 
 	if ret['mode'] >0:
-		updatesql = "insert into suibo_user_info(regtime,uin,login_type) values('%s',%d,%d)" % (ret['time'],ret['uin'],ret['source'])
+		updatesql = "insert into suibo_user_info(regtime,uin,login_type,clientchannel) values('%s',%d,%d,'%s')" % (ret['time'],ret['uin'],ret['source'],ret['channel'])
 	else:
-		updatesql = "insert into suibo_user_info(uin,login_type) values(%d,%d)" % (ret['uin'],ret['source'])
+		updatesql = "insert into suibo_user_info(uin,login_type,clientchannel) values(%d,%d,'%s')" % (ret['uin'],ret['source'],ret['channel'])
 	commentstr = None
 	if ret['mode'] >0:
-		commentstr = u"第一次授权登陆,来源:%s" % (LoginType.GetName(ret['source']))
+		commentstr = u"第一次授权登陆,来源:%s 渠道:%s" % (LoginType.GetName(ret['source']),ret['channel'])
 	else:
-		commentstr = u"来源:%s" % (LoginType.GetName(ret['source']))
+		commentstr = u"来源:%s 渠道:%s" % (LoginType.GetName(ret['source']),ret['channel'])
 	eventsql=EvensIDS.GetEventSql(EvensIDS.EVENT_LOGIN_ID,ret['uin'],ret['time'],commentstr)
 	sqllist['insert'] = insertsql
 	sqllist['update'] = updatesql
@@ -141,8 +142,8 @@ def splitChangNick(message):
 		if (cid == 'quokka_ios') or (cid == 'quokka_android'):
 			if message.value['eventid'] == 100102:
 				tablename= "suibo_user_action_" + time.strftime("%Y%m", time.localtime())
-				insertsql = "insert into %s(action_time,uin,flag,ip) values('%s',%d,%d,'%s')" %\
-							(tablename,message.value['serTime'],int(message.value['content']['requestData']['uin']),6,message.value['content']['requestData']['nick'])
+				insertsql = "insert into %s(action_time,uin,flag,ip) values('%s',%d,%d,'%s') ON DUPLICATE KEY UPDATE ip='%s'" %\
+							(tablename,message.value['serTime'],int(message.value['content']['requestData']['uin']),6,message.value['content']['requestData']['nick'],message.value['content']['requestData']['nick'])
 				commentstr = u"%s" % (message.value['content']['requestData']['nick'])
 				eventstr = EvensIDS.GetEventSql(EvensIDS.EVENT_CHANGENAME_ID,message.value['content']['requestData']['uin'],message.value['serTime'],commentstr)
 	sqllist['insert'] = insertsql
@@ -198,7 +199,7 @@ def splitAppleBuy(message):
 			date = date.replace('/','-')
 			channel = message.value['content']['requestData']['clientChannel']
 			clientver = message.value['content']['requestData']['clientVer']
-			money = (message.value['content']['retData'])
+			money = message.value['content']['retData']
 			ordernum = message.value['content']['requestData']['orderNum']
 			tablename = TableNameS.suibo_usr_buy + '_' + time.strftime("%Y%m", time.localtime())
 			npaytype = 5
