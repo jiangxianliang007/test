@@ -73,8 +73,9 @@ def  CloseDB():
 def savedbsqlalchemy(sql):
 	global session
 	try:
-		session.execute(sql)
+		ret = session.execute(sql)
 		session.commit()
+		return ret
 	except Exception, e:
 		print Exception,":",e
 		root.warn(e)
@@ -82,6 +83,7 @@ def savedbsqlalchemy(sql):
 def splitSendGift(message):
 	insertsql = None
 	eventsql = None
+	eventsql2 = None
 	sqllist = {}
 	regstr = '(?P<date>\d+/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\|(?:\s+type:suibo\s+version:\d+.\d+.\d+.\d+\s+module:SEND_GIFT\s+eventid:769\s+pid:1\s+servid:\d+\s+roomid:)'\
 		'(?P<roomid>\d+)(?:\s+src:)(?P<srcuin>\d+)(?:\s+vid:)(?P<vid>\d+_\d+)(?:\s+dst:)(?P<dstuin>\d+)(?:\s+presentMony:)(?P<sendmoney>\d+)(?:\s+combo:)(?P<combo>\d+)'
@@ -93,8 +95,11 @@ def splitSendGift(message):
 				(tablename,match.group('date'),int(match.group('roomid')),int(match.group('srcuin')),match.group('vid'),int(match.group('dstuin')),int(match.group('sendmoney')),int(match.group('combo')))
 		commentstr = u"在主播号%s送了%d乐豆,连击%d次"%(match.group('vid'),int(match.group('sendmoney')),int(match.group('combo')))
 		eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_SENDGIFT_ID,int(match.group('srcuin')),match.group('date'),commentstr)
+		commentstr2 =  u"在主播号%s收了用戶%d送的%d乐豆"%(match.group('vid'),int(match.group('srcuin')),int(match.group('sendmoney')))
+		eventsql2 = EvensIDS.GetEventSql(EvensIDS.EVENT_RECVGIFT_ID,int(match.group('dstuin')),match.group('date'),commentstr2)
 	sqllist['insert'] = insertsql
 	sqllist['event'] = eventsql
+	sqllist['event2'] = eventsql2
 	return sqllist
 #解析聊天
 def splitChat(message):
@@ -168,9 +173,38 @@ def  splitTerminateVideo(message):
 			tablename= TableNameS.suibo_usr_closevideo + '_' + time.strftime("%Y%m", time.localtime())
 			insertsql = "insert into %s(date,vid,viewnum,laudcount,duration) values('%s','%s',%d,%d,%d)"%\
 					(tablename,match.group('date'),match.group('vid'),int(match.group('viewnum')),int(match.group('laudcount')),int(match.group('duration')))
-			commentstr = u"vid:%s,开播时长:%s,累积观看时长:%s,总观看人数:%d,总点赞数:%d" % \
+			
+			rcvgiftsql = "select sum(money) AS money,count(1) AS num,srcUin" \
+				" from %s WHERE  vid ='%s' GROUP BY srcUin" %(TableNameS.suibo_room_sendgift_info,match.group('vid'))
+			retresult = savedbsqlalchemy(rcvgiftsql)
+			recvemoney = 0
+			recvcount = 0
+			senderuincount = 0
+			maxnumsenduin = 0
+			maxmoneysenduin = 0
+			maxnum = 0
+			maxmoney = 0
+			if retresult!=None:
+				senderuincount =  retresult.rowcount
+				if senderuincount>0:
+					rows = retresult.fetchall()
+					for row in rows:
+						recvemoney =  recvemoney + row['money']
+						recvcount = recvcount + row['num']
+						if maxnum <  int(row['num']):
+							maxnum = int(row['num'])
+							maxnumsenduin = int(row['srcUin'])
+						if maxmoney < int (row['money']):
+							maxmoneysenduin = int(row['srcUin'])
+							maxmoney = int( row['money'])
+
+			recvgiftcomment = u'总收礼次数:%d,总送礼人数:%d,总乐豆:%d 送礼次数最多用户:%d %d次 送礼总金额最多用户:%d %d乐豆' %\
+								(recvcount,senderuincount,recvemoney,maxnumsenduin,maxnum,maxmoneysenduin,maxmoney)
+			commentstr = u"vid:%s,开播时长:%s,累积观看时长:%s,总观看人数:%d,总点赞数:%d %s" % \
 						(match.group('vid'),GetTimeStr(match.group('duration')),GetTimeStr(match.group('viewtime')),\
-						int(match.group('viewnum')),int(match.group('laudcount')))
+						int(match.group('viewnum')),int(match.group('laudcount')),recvgiftcomment)
+
+
 			vidtemplst = match.group('vid').split('_')
 			eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_TEMINATEVIDEO_ID,int(vidtemplst[0]),match.group('date'),commentstr)
 	sqllist['insert'] = insertsql
@@ -179,8 +213,8 @@ def  splitTerminateVideo(message):
 
 def Split():
 	global kafka_hosts
-	consumer = KafkaConsumer('suiboltlog',
-						 group_id='suibo',
+	consumer = KafkaConsumer('suiboltlog4',
+						 group_id='suibo3333',
                          client_id="suibochat",
                          bootstrap_servers=kafka_hosts,value_deserializer=lambda m: json.loads(m.decode('utf-8')),auto_offset_reset="earliest", enable_auto_commit=True)
 	for message in consumer:
@@ -195,6 +229,8 @@ def Split():
 			savedbsqlalchemy(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
 				savedbsqlalchemy(sqllist['event'])
+			if sqllist.has_key('event2') and sqllist['event2']!=None:
+				savedbsqlalchemy(sqllist['event2'])
 			continue
 		sqllist = splitLL(message)
 		if sqllist.has_key('insert') and sqllist['insert']!= None:
@@ -221,7 +257,6 @@ def Split():
 def main():
 	InitialDB()
 	Split()
-	
 
 if __name__ == "__main__":
 	main()

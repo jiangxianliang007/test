@@ -12,6 +12,7 @@ class EvensIDS(object):
 	EVENT_TEMINATEVIDEO_ID = 7#关掉直播
 	EVENT_BUY_ID = 8		#充值
 	EVENT_DRAWMONEY_ID = 9	#提现
+	EVENT_RECVGIFT_ID = 10  # 收礼
 
 	@staticmethod
 	def GetEventName(ntype):
