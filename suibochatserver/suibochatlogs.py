@@ -213,8 +213,8 @@ def  splitTerminateVideo(message):
 
 def Split():
 	global kafka_hosts
-	consumer = KafkaConsumer('suiboltlog4',
-						 group_id='suibo3333',
+	consumer = KafkaConsumer('suiboltlog',
+						 group_id='suibo',
                          client_id="suibochat",
                          bootstrap_servers=kafka_hosts,value_deserializer=lambda m: json.loads(m.decode('utf-8')),auto_offset_reset="earliest", enable_auto_commit=True)
 	for message in consumer:

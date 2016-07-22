@@ -86,7 +86,10 @@ def splitWebBuy4100(message):
 	eventsql = None
 	eventstr = None
 	if ('eventid' in message.value) and ('content' in message.value) and ('serTime' in message.value)  \
-		and ('uin' in message.value) and ('orderInfo' in message.value['content']) and ('orderFrom' in message.value['content']):
+		and ('uin' in message.value) and ('orderInfo' in message.value['content']) and ('orderFrom' in message.value['content']) \
+		and ('ordertype' in message.value['content']):
+		if int(message.value['content']['ordertype'])!=1:
+			return sqllist
 		orderjson = json.JSONDecoder().decode(message.value['content']['orderInfo'])
 		uin = int(message.value['uin'])
 		date = message.value['serTime']
@@ -134,7 +137,7 @@ def Split():
 		if not allowSplit(message):
 			continue
 		sqllist = splitWebBuy4100(message)
-		if sqllist.has_key('insert') and sqllist['insert']!=None:
+		if sqllist!=None and sqllist.has_key('insert') and sqllist['insert']!=None:
 			savedbsqlalchemy(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
 				#print sqllist['event']
