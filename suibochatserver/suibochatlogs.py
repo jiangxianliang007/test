@@ -21,6 +21,7 @@ from tools import GetTimeStr
 from tabledefine import TableNameS
 import time
 session=None
+imquokkaDBsession = None
 kafka_hosts=[]
 if not os.path.exists('./logs/suibochat'):
 	os.makedirs('./logs/suibochat')
@@ -33,7 +34,22 @@ root = logging.getLogger()
 root.addHandler(hdlr)  
 root.setLevel(level)
 
-
+def InitialimquokkaDB():
+	cf = ConfigParser.ConfigParser()
+	try:
+		cf.read("db.conf")
+		db_host = cf.get("db", "imquokkadb_host")
+		db_port = cf.getint("db", "imquokkadb_port")
+		db_user = cf.get("db", "imquokkadb_user")
+		db_pass = cf.get("db", "imquokkadb_pass")
+		DB_CONNECT_STRING = "mysql+mysqldb://%s:%s@%s:%s/imquokka?charset=utf8" % (db_user,db_pass,db_host,db_port) 
+		engine = create_engine(DB_CONNECT_STRING, echo=True)
+		DB_Session = sessionmaker(bind=engine)
+		global imquokkaDBsession
+		imquokkaDBsession = DB_Session()
+	except Exception, e:
+		print Exception,e
+	
 
 def InitialDB():
 	global kafka_hosts
@@ -66,9 +82,18 @@ def InitialDB():
 def  CloseDB():
 	global session
 	session.close()
+	imquokkaDBsession.close()
 
 
-
+def excuteimquokkadb(sql):
+	global imquokkaDBsession
+	try:
+		ret = imquokkaDBsession.execute(sql)
+		imquokkaDBsession.commit()
+		return ret
+	except Exception, e:
+		print Exception,":",e
+		root.warn(e)
 
 def savedbsqlalchemy(sql):
 	global session
@@ -123,7 +148,7 @@ def splitLL(message):
 	sqllist = {}
 	regstr = '(?P<date>\d+/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\|(?:\s+LL\s+)(?P<uin>\d+)(?:\s+logon room\s+)(?P<roomid>\d+)'\
 				'(?:\s+devType\s+=\s+)(?P<devtype>\d+)(?:\s+)(?P<ip>\d+.\d+.\d+.\d+):(?:\d+\s+money\s+=\s+\d+,\s+recv\s+=\s+\d+'\
-		 		'\s+accountState=\d+,\s+customFace=\d+,\s+rank\s+=\d+\s+\d+,\s+mac=)(?P<mac>[0-9a-zA-Z]{0,40})(?:\s+proxy)'\
+		 		'\s+accountState=\d+,\s+customFace=\d+,\s+rank\s+=\d+\s+\d+,\s+mac=)(?P<mac>[0-9a-zA-Z]{0,60})(?:\s+proxy)'\
 		 		'(?P<proxyip>\d+.\d+.\d+.\d+):(?:\d+)(?:\s+enterpic=[0-9a-zA-Z._/]+\s+newpic=[0-9a-zA-Z._/]+\s+level\s+=\s+\d+\s+'\
 		  		'ver=\d+\s+loginSpan\s+)(?P<span>\d+)'
 	pattern = re.compile(regstr)
@@ -198,11 +223,35 @@ def  splitTerminateVideo(message):
 							maxmoneysenduin = int(row['srcUin'])
 							maxmoney = int( row['money'])
 
+			rewardcommentstr=""
+			if int(match.group('duration'))>0:
+				sumdatablename = TableNameS.bo_sumdayvid + '_' + time.strftime("%Y%m", time.localtime())
+				rewartsql = "select amount,acash,kind from %s WHERE vid IN('%s') AND kind IN(10,186,187,188,189)" %(sumdatablename,match.group('vid'))
+				rewardret = excuteimquokkadb(rewartsql)
+				if rewardret!=None:
+					rewardrows = rewardret.fetchall()
+					for rewardrow in rewardrows:
+						if int(rewardrow['kind']) == 186:
+							temstr =  u'获得直播奖励%f人民币' %(rewardrow['amount']/float(100000))
+							rewardcommentstr = rewardcommentstr + temstr
+						elif int(int(rewardrow['kind']) == 189):
+							temstr =  u'获得首播奖励%f人民币 ' %(rewardrow['amount']/float(100000))
+							rewardcommentstr = rewardcommentstr + temstr
+						elif int(int(rewardrow['kind']) == 188):
+							temstr =  u'分享直播奖励%f人民币 ' %(rewardrow['amount']/float(100000))
+							rewardcommentstr = rewardcommentstr + temstr
+						elif int(int(rewardrow['kind']) == 187):
+							temstr =  u'观看奖励%f人民币 ' %(rewardrow['amount']/float(100000))
+							rewardcommentstr = rewardcommentstr + temstr
+						elif int(int(rewardrow['kind']) == 10):
+							temstr =  u'收礼奖励%f人民币 ' %(rewardrow['amount']/float(100000))
+							rewardcommentstr = rewardcommentstr + temstr
+					print rewardcommentstr
 			recvgiftcomment = u'总收礼次数:%d,总送礼人数:%d,总乐豆:%d 送礼次数最多用户:%d %d次 送礼总金额最多用户:%d %d乐豆' %\
 								(recvcount,senderuincount,recvemoney,maxnumsenduin,maxnum,maxmoneysenduin,maxmoney)
-			commentstr = u"vid:%s,开播时长:%s,累积观看时长:%s,总观看人数:%d,总点赞数:%d %s" % \
+			commentstr = u"vid:%s,开播时长:%s,累积观看时长:%s,总观看人数:%d,总点赞数:%d %s %s" % \
 						(match.group('vid'),GetTimeStr(match.group('duration')),GetTimeStr(match.group('viewtime')),\
-						int(match.group('viewnum')),int(match.group('laudcount')),recvgiftcomment)
+						int(match.group('viewnum')),int(match.group('laudcount')),recvgiftcomment,rewardcommentstr)
 
 
 			vidtemplst = match.group('vid').split('_')
@@ -256,6 +305,7 @@ def Split():
 
 def main():
 	InitialDB()
+	InitialimquokkaDB()
 	Split()
 
 if __name__ == "__main__":

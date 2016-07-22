@@ -13,3 +13,5 @@ class TableNameS(object):
 
 	suibo_usr_buy = 'suibo_usr_buy'
 	suibo_drawmoney = 'suibo_drawmoney'
+
+	bo_sumdayvid = 'bo_sumdayvid'
