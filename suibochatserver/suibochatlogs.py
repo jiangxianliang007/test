@@ -149,7 +149,7 @@ def splitLL(message):
 	regstr = '(?P<date>\d+/\d{2}/\d{2}\s+\d{2}:\d{2}:\d{2})\|(?:\s+LL\s+)(?P<uin>\d+)(?:\s+logon room\s+)(?P<roomid>\d+)'\
 				'(?:\s+devType\s+=\s+)(?P<devtype>\d+)(?:\s+)(?P<ip>\d+.\d+.\d+.\d+):(?:\d+\s+money\s+=\s+\d+,\s+recv\s+=\s+\d+'\
 		 		'\s+accountState=\d+,\s+customFace=\d+,\s+rank\s+=\d+\s+\d+,\s+mac=)(?P<mac>[0-9a-zA-Z]{0,60})(?:\s+proxy)'\
-		 		'(?P<proxyip>\d+.\d+.\d+.\d+):(?:\d+)(?:\s+enterpic=[0-9a-zA-Z._/]+\s+newpic=[0-9a-zA-Z._/]+\s+level\s+=\s+\d+\s+'\
+		 		'(?P<proxyip>\d+.\d+.\d+.\d+):(?:\d+)(?:\s+enterpic=[0-9a-zA-Z._/]*\s+newpic=[0-9a-zA-Z._/]*\s+level\s+=\s+\d+\s+'\
 		  		'ver=\d+\s+loginSpan\s+)(?P<span>\d+)'
 	pattern = re.compile(regstr)
 	match = pattern.search(message.value['message'])
@@ -246,7 +246,7 @@ def  splitTerminateVideo(message):
 						elif int(int(rewardrow['kind']) == 10):
 							temstr =  u'收礼奖励%f人民币 ' %(rewardrow['amount']/float(100000))
 							rewardcommentstr = rewardcommentstr + temstr
-					print rewardcommentstr
+					#print rewardcommentstr
 			recvgiftcomment = u'总收礼次数:%d,总送礼人数:%d,总乐豆:%d 送礼次数最多用户:%d %d次 送礼总金额最多用户:%d %d乐豆' %\
 								(recvcount,senderuincount,recvemoney,maxnumsenduin,maxnum,maxmoneysenduin,maxmoney)
 			commentstr = u"vid:%s,开播时长:%s,累积观看时长:%s,总观看人数:%d,总点赞数:%d %s %s" % \
