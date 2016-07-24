@@ -3,8 +3,6 @@
 import string, os, sys
 sys.path.append('../comm')
 from kafka import KafkaConsumer
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 import ConfigParser
 import json
 import re
@@ -20,6 +18,7 @@ from tabledefine import TableNameS
 from EventsDefine import PayTypeName
 from xml.etree import ElementTree as ET
 from sendemail import sendEmail
+from dbhelper import TaoleSessionDB
 import Queue
 session=None
 kafka_hosts=[]
@@ -81,32 +80,10 @@ def InitialDB():
 	
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
 	global session
-	DB_CONNECT_STRING = "mysql+mysqldb://%s:%s@%s:%s/imsuibo?charset=utf8" % (db_user,db_pass,db_host,db_port) 
-	engine = create_engine(DB_CONNECT_STRING, echo=False)
-	DB_Session = sessionmaker(bind=engine)
-	session = DB_Session()
-	try:
-		session.execute("SET NAMES 'utf8mb4'")
-	except Exception, e:
-		print Exception,":",e
-		taolelogs.logroot.warn(e)
-		exit(0)
-
-def  CloseDB():
-	global session
-	session.close()
+	session = TaoleSessionDB(db_host,db_port,db_user,db_pass,'imsuibo')
 
 
-def savedbsqlalchemy(sql):
-	global session
-	try:
-		result = session.execute(sql)
-		session.commit()
-		return result.rowcount
-	except Exception, e:
-		print Exception,":",e
-		taolelogs.logroot.warn(e)
-		return False
+
 
 	
 #能夠析的東西加在這裡

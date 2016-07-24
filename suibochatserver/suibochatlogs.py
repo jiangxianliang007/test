@@ -3,8 +3,6 @@
 import string, os, sys
 sys.path.append('../comm')
 from kafka import KafkaConsumer
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 import ConfigParser
 import json
 import re
@@ -17,6 +15,7 @@ from EventsDefine import LoginType
 from tools import SuiboGetIP
 from tools import GetTimeStr
 from tabledefine import TableNameS
+from dbhelper import TaoleSessionDB
 import time
 session=None
 imquokkaDBsession = None
@@ -25,21 +24,18 @@ kafka_hosts=[]
 
 def InitialimquokkaDB():
 	cf = ConfigParser.ConfigParser()
+	global imquokkaDBsession
 	try:
 		cf.read("db.conf")
 		db_host = cf.get("db", "imquokkadb_host")
 		db_port = cf.getint("db", "imquokkadb_port")
 		db_user = cf.get("db", "imquokkadb_user")
 		db_pass = cf.get("db", "imquokkadb_pass")
-		DB_CONNECT_STRING = "mysql+mysqldb://%s:%s@%s:%s/imquokka?charset=utf8" % (db_user,db_pass,db_host,db_port) 
-		engine = create_engine(DB_CONNECT_STRING, echo=True)
-		DB_Session = sessionmaker(bind=engine)
-		global imquokkaDBsession
-		imquokkaDBsession = DB_Session()
 	except Exception, e:
 		print Exception,e
 		taolelogs.logroot.warn(e)
 		exit(0)
+	imquokkaDBsession = TaoleSessionDB(db_host,db_port,db_user,db_pass,'imquokka')
 	
 
 def InitialDB():
@@ -59,42 +55,17 @@ def InitialDB():
 	
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
 	global session
-	DB_CONNECT_STRING = "mysql+mysqldb://%s:%s@%s:%s/imsuibo?charset=utf8" % (db_user,db_pass,db_host,db_port) 
-	engine = create_engine(DB_CONNECT_STRING, echo=False)
-	DB_Session = sessionmaker(bind=engine)
-	session = DB_Session()
+	session = TaoleSessionDB(db_host,db_port,db_user,db_pass,'imsuibo')
 	try:
-		session.execute("SET NAMES 'utf8mb4'")
+		session.excute("SET NAMES 'utf8mb4'")
 	except Exception, e:
 		print Exception,":",e
 		taolelogs.logroot.warn(e)
 		exit(0)
 
-def  CloseDB():
-	global session
-	session.close()
-	imquokkaDBsession.close()
 
 
-def excuteimquokkadb(sql):
-	global imquokkaDBsession
-	try:
-		ret = imquokkaDBsession.execute(sql)
-		imquokkaDBsession.commit()
-	except Exception, e:
-		print Exception,":",e
-		taolelogs.logroot.warn(e)
-	return ret
 
-def savedbsqlalchemy(sql):
-	global session
-	try:
-		ret = session.execute(sql)
-		session.commit()
-	except Exception, e:
-		print Exception,":",e
-		taolelogs.logroot.warn(e)
-	return ret
 #解析刷花
 def splitSendGift(message):
 	insertsql = None
@@ -109,9 +80,9 @@ def splitSendGift(message):
 		tablename = TableNameS.suibo_room_sendgift_info# + '_' + time.strftime("%Y%m", time.localtime())
 		insertsql = "insert into %s(tjdate,roomid,srcUin,vid,dstUin,money,combo) values('%s',%d,%d,'%s',%d,%d,%d)"%\
 				(tablename,match.group('date'),int(match.group('roomid')),int(match.group('srcuin')),match.group('vid'),int(match.group('dstuin')),int(match.group('sendmoney')),int(match.group('combo')))
-		commentstr = u"在主播号%s送了%d乐豆,连击%d次"%(match.group('vid'),int(match.group('sendmoney')),int(match.group('combo')))
+		commentstr = u"在主播号%s送了%d乐豆(%f人民币),连击%d次"%(match.group('vid'),int(match.group('sendmoney')),int(match.group('sendmoney'))/float(100000),int(match.group('combo')))
 		eventsql = EvensIDS.GetEventSql(EvensIDS.EVENT_SENDGIFT_ID,int(match.group('srcuin')),match.group('date'),commentstr)
-		commentstr2 =  u"在主播号%s收了用戶%d送的%d乐豆"%(match.group('vid'),int(match.group('srcuin')),int(match.group('sendmoney')))
+		commentstr2 =  u"在主播号%s收了用戶%d送的%d乐豆(%f人民币) 连击%d次"%(match.group('vid'),int(match.group('srcuin')),int(match.group('sendmoney')),int(match.group('sendmoney'))/float(100000),int(match.group('combo')))
 		eventsql2 = EvensIDS.GetEventSql(EvensIDS.EVENT_RECVGIFT_ID,int(match.group('dstuin')),match.group('date'),commentstr2)
 	sqllist['insert'] = insertsql
 	sqllist['event'] = eventsql
@@ -180,6 +151,7 @@ def  splitTerminateVideo(message):
 	insertsql = None
 	eventsql = None
 	sqllist = {}
+	global imquokkaDBsession
 	regstr = '(?P<date>\d+/\d+/\d+\s+\d+:\d+:\d+)\|(?:\s+roomid=)(?P<roomid>\d+)(?:\s+update\s+user\s+vid\s+)(?P<vid>\d+_\d+)(?:\s+viewNum=)(?P<viewnum>\d+)(?:\s+viewTime=)(?P<viewtime>\d+)(?:\s+duration\s+)(?P<duration>\d+)'\
 			'(?:\s+laudCount\s+)(?P<laudcount>\d+)(?:\s+vState\s+)(?P<vstate>\d+)(?:\s+webCurrNum=\d+\s+currNum=)(?P<currnum>\d+)'
 	pattern =re.compile(regstr)
@@ -192,7 +164,7 @@ def  splitTerminateVideo(message):
 			
 			rcvgiftsql = "select sum(money) AS money,count(1) AS num,srcUin" \
 				" from %s WHERE  vid ='%s' GROUP BY srcUin" %(TableNameS.suibo_room_sendgift_info,match.group('vid'))
-			retresult = savedbsqlalchemy(rcvgiftsql)
+			retresult = session.excute(rcvgiftsql)
 			recvemoney = 0
 			recvcount = 0
 			senderuincount = 0
@@ -218,7 +190,7 @@ def  splitTerminateVideo(message):
 			if int(match.group('duration'))>0:
 				sumdatablename = TableNameS.bo_sumdayvid + '_' + time.strftime("%Y%m", time.localtime())
 				rewartsql = "select amount,acash,kind from %s WHERE vid IN('%s') AND kind IN(10,186,187,188,189)" %(sumdatablename,match.group('vid'))
-				rewardret = excuteimquokkadb(rewartsql)
+				rewardret = imquokkaDBsession.excute(rewartsql)
 				if rewardret!=None:
 					rewardrows = rewardret.fetchall()
 					for rewardrow in rewardrows:
@@ -238,8 +210,8 @@ def  splitTerminateVideo(message):
 							temstr =  u'收礼奖励%f人民币 ' %(rewardrow['amount']/float(100000))
 							rewardcommentstr = rewardcommentstr + temstr
 					#print rewardcommentstr
-			recvgiftcomment = u'总收礼次数:%d,总送礼人数:%d,总乐豆:%d 送礼次数最多用户:%d %d次 送礼总金额最多用户:%d %d乐豆' %\
-								(recvcount,senderuincount,recvemoney,maxnumsenduin,maxnum,maxmoneysenduin,maxmoney)
+			recvgiftcomment = u'总收礼次数:%d,总送礼人数:%d,总乐豆:%d(%f人民币) 送礼次数最多用户:%d %d次 送礼总金额最多用户:%d %d乐豆(%f人民币)' %\
+								(recvcount,senderuincount,recvemoney,float(recvemoney)/float(100000),maxnumsenduin,maxnum,maxmoneysenduin,maxmoney,float(maxmoney)/float(100000))
 			commentstr = u"vid:%s,开播时长:%s,累积观看时长:%s,总观看人数:%d,总点赞数:%d %s %s" % \
 						(match.group('vid'),GetTimeStr(match.group('duration')),GetTimeStr(match.group('viewtime')),\
 						int(match.group('viewnum')),int(match.group('laudcount')),recvgiftcomment,rewardcommentstr)
@@ -253,6 +225,7 @@ def  splitTerminateVideo(message):
 
 def Split():
 	global kafka_hosts
+	global session
 	consumer = KafkaConsumer('suiboltlog',
 						 group_id='suibo',
                          client_id="suibochat",
@@ -260,37 +233,37 @@ def Split():
 	for message in consumer:
 		sqllist = splitChat(message)
 		if sqllist.has_key('insert') and sqllist['insert']!= None:
-			savedbsqlalchemy(sqllist['insert'])
+			session.excute(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
-				savedbsqlalchemy(sqllist['event'])
+				session.excute(sqllist['event'])
 			continue
 		sqllist = splitSendGift(message)
 		if sqllist.has_key('insert') and sqllist['insert']!= None:
-			savedbsqlalchemy(sqllist['insert'])
+			session.excute(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
-				savedbsqlalchemy(sqllist['event'])
+				session.excute(sqllist['event'])
 			if sqllist.has_key('event2') and sqllist['event2']!=None:
-				savedbsqlalchemy(sqllist['event2'])
+				session.excute(sqllist['event2'])
 			continue
 		sqllist = splitLL(message)
 		if sqllist.has_key('insert') and sqllist['insert']!= None:
-			savedbsqlalchemy(sqllist['insert'])
+			session.excute(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
-				savedbsqlalchemy(sqllist['event'])
+				session.excute(sqllist['event'])
 			continue
 
 		sqllist = splitLO(message)
 		if sqllist.has_key('insert') and sqllist['insert']!= None:
-			savedbsqlalchemy(sqllist['insert'])
+			session.excute(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
-				savedbsqlalchemy(sqllist['event'])
+				session.excute(sqllist['event'])
 			continue
 
 		sqllist = splitTerminateVideo(message)
 		if sqllist.has_key('insert') and sqllist['insert']!= None:
-			savedbsqlalchemy(sqllist['insert'])
+			session.excute(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
-				savedbsqlalchemy(sqllist['event'])
+				session.excute(sqllist['event'])
 			continue
 
 

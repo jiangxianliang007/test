@@ -18,6 +18,8 @@ from EventsDefine import LoginType
 from tabledefine import TableNameS
 from EventsDefine import PayTypeName
 import taolelogs
+from dbhelper import TaoleSessionDB
+
 session=None
 kafka_hosts=[]
 
@@ -25,6 +27,7 @@ kafka_hosts=[]
 
 def InitialDB():
 	global kafka_hosts
+	global session
 	cf = ConfigParser.ConfigParser()
 	try:
 		cf.read("db.conf")
@@ -37,38 +40,10 @@ def InitialDB():
 		print Exception,":",e
 		taolelogs.logroot.warn(e)
 		exit(0)
-	
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
-	global session
-	DB_CONNECT_STRING = "mysql+mysqldb://%s:%s@%s:%s/imsuibo?charset=utf8" % (db_user,db_pass,db_host,db_port) 
-	engine = create_engine(DB_CONNECT_STRING, echo=False)
-	DB_Session = sessionmaker(bind=engine)
-	session = DB_Session()
-	try:
-		session.execute("SET NAMES 'utf8mb4'")
-	except Exception, e:
-		print Exception,":",e
-		taolelogs.logroot.warn(e)
-		exit(0)
-
-def  CloseDB():
-	global session
-	session.close()
+	session = TaoleSessionDB(db_host,db_port,db_user,db_pass,'imsuibo')
 
 
-
-
-def savedbsqlalchemy(sql):
-	result = None
-	global session
-	try:
-		result = session.execute(sql)
-		session.commit()
-	except Exception, e:
-		print Exception,":",e
-		taolelogs.logroot.warn(e)
-		return 0
-	return result.rowcount
 
 
 def splitWebBuy4100(message):
@@ -120,6 +95,7 @@ def allowSplit(message):
 
 def Split():
 	global kafka_hosts
+	global session
 	consumer = KafkaConsumer('tlewebapilogs',
 						 group_id='tlewebapilogs',
                          client_id="tlewebapilogs",
@@ -129,10 +105,10 @@ def Split():
 			continue
 		sqllist = splitWebBuy4100(message)
 		if sqllist!=None and sqllist.has_key('insert') and sqllist['insert']!=None:
-			savedbsqlalchemy(sqllist['insert'])
+			session.excute(sqllist['insert'])
 			if sqllist.has_key('event') and sqllist['event']!=None:
 				#print sqllist['event']
-				savedbsqlalchemy(sqllist['event'])
+				session.excute(sqllist['event'])
 			continue
 	
 def main():
