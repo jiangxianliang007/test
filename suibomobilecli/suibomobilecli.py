@@ -1,6 +1,7 @@
 #coding=utf-8
 #!/usr/bin/ python
 import string, os, sys
+sys.path.append('../comm')
 from kafka import KafkaConsumer
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -9,6 +10,7 @@ import json
 import re
 import MySQLdb
 import sqlalchemy
+import taolelogs
 session=None
 kafka_hosts=[]
 def InitialDB():
@@ -23,6 +25,7 @@ def InitialDB():
 		kafka_hosts = cf.get("kafka","broker_hosts")
 	except Exception, e:
 		print Exception,":",e
+		taolelogs.logroot.warn(e)
 		exit(0)
 	
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
@@ -35,6 +38,7 @@ def InitialDB():
 		session.execute("SET NAMES 'utf8mb4'")
 	except Exception, e:
 		print Exception,":",e
+		taolelogs.logroot.warn(e)
 		exit(0)
 
 def  CloseDB():
@@ -52,7 +56,8 @@ def savedbsqlalchemy(sql):
 		return result.rowcount
 	except Exception, e:
 		print Exception,":",e
-		return False
+		taolelogs.logroot.warn(e)
+		return 0
 	
 
 
@@ -77,6 +82,7 @@ def Split():
 		
 	
 def main():
+	taolelogs.InitailLogs('suibomobilecli')
 	InitialDB()
 	Split()
 	

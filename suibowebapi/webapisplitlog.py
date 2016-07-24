@@ -1,6 +1,5 @@
 #coding=utf-8
 #!/usr/bin/python
-
 import string, os, sys
 sys.path.append('../comm')
 from kafka import KafkaConsumer
@@ -13,25 +12,14 @@ import MySQLdb
 import sqlalchemy
 import datetime
 import time
-import logging
-import logging.handlers
-from logging.handlers import TimedRotatingFileHandler
+import taolelogs
 from EventsDefine import EvensIDS
 from EventsDefine import LoginType
 from tabledefine import TableNameS
 from EventsDefine import PayTypeName
 session=None
 kafka_hosts=[]
-if not os.path.exists('./logs/suibowebapi'):
-	os.makedirs('./logs/suibowebapi')
-level = logging.INFO  
-format = '%(asctime)s %(levelname)s %(module)s.%(funcName)s Line:%(lineno)d %(message)s'  
-hdlr = TimedRotatingFileHandler("./logs/suibowebapi/suibowebapi.log","D")  
-fmt = logging.Formatter(format)  
-hdlr.setFormatter(fmt)  
-root = logging.getLogger()
-root.addHandler(hdlr)  
-root.setLevel(level)
+
 
 
 def InitialDB():
@@ -46,6 +34,7 @@ def InitialDB():
 		kafka_hosts = cf.get("kafka","broker_hosts")
 	except Exception, e:
 		print Exception,":",e
+		taolelogs.logroot.warn(e)
 		exit(0)
 	
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
@@ -58,7 +47,7 @@ def InitialDB():
 		session.execute("SET NAMES 'utf8mb4'")
 	except Exception, e:
 		print Exception,":",e
-		root.warn(e)
+		taolelogs.logroot.warn(e)
 		exit(0)
 
 def  CloseDB():
@@ -76,7 +65,7 @@ def savedbsqlalchemy(sql):
 		return result.rowcount
 	except Exception, e:
 		print Exception,":",e
-		root.warn(e)
+		taolelogs.logroot.warn(e)
 		return False
 
 #返回 {mode,source,uin,time}
@@ -303,6 +292,7 @@ def Split():
 			continue
 	
 def main():
+	taolelogs.InitailLogs('suibowebapi')
 	InitialDB()
 	Split()
 	

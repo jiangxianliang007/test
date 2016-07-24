@@ -12,10 +12,8 @@ import MySQLdb
 import sqlalchemy
 import datetime
 import time
-import logging
-import logging.handlers
 import threading
-from logging.handlers import TimedRotatingFileHandler
+import taolelogs
 from EventsDefine import EvensIDS
 from EventsDefine import LoginType
 from tabledefine import TableNameS
@@ -28,16 +26,6 @@ kafka_hosts=[]
 geidsdict= {}
 emailque = Queue.Queue()
 
-if not os.path.exists('./logs/suiboerrorapilogs'):
-	os.makedirs('./logs/suiboerrorapilogs')
-level = logging.INFO  
-format = '%(asctime)s %(levelname)s %(module)s.%(funcName)s Line:%(lineno)d %(message)s'  
-hdlr = TimedRotatingFileHandler("./logs/suiboerrorapilogs/suiboerrorapilogs.log","D")  
-fmt = logging.Formatter(format)  
-hdlr.setFormatter(fmt)  
-root = logging.getLogger()
-root.addHandler(hdlr)  
-root.setLevel(level)
 class  ErrItem(object):
 	def __init__(self, id,titile,content):
 		self.id = id
@@ -71,6 +59,8 @@ def  readErrxml():
 			geidsdict[eiditem.attrib['id']] = item
 	except Exception, e:
 		print Exception,e
+		taolelogs.logroot.warn(e)
+		exit(0)
 	
 
 
@@ -86,6 +76,7 @@ def InitialDB():
 		kafka_hosts = cf.get("kafka","broker_hosts")
 	except Exception, e:
 		print Exception,":",e
+		taolelogs.logroot.warn(e)
 		exit(0)
 	
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
@@ -98,7 +89,7 @@ def InitialDB():
 		session.execute("SET NAMES 'utf8mb4'")
 	except Exception, e:
 		print Exception,":",e
-		root.warn(e)
+		taolelogs.logroot.warn(e)
 		exit(0)
 
 def  CloseDB():
@@ -114,7 +105,7 @@ def savedbsqlalchemy(sql):
 		return result.rowcount
 	except Exception, e:
 		print Exception,":",e
-		root.warn(e)
+		taolelogs.logroot.warn(e)
 		return False
 
 	
@@ -188,6 +179,7 @@ def SendEmail():
 		sendEmail(item.emailtitle,tousrs,'web API errors',item.errmsg)
 
 def main():
+	taolelogs.InitailLogs('suiboerrorapilogs')
 	InitialDB()
 	readErrxml()
 	t=threading.Thread(target = SendEmail,args=())

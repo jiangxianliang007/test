@@ -11,9 +11,7 @@ import re
 import MySQLdb
 import sqlalchemy
 from sqlalchemy.pool import NullPool
-import logging
-import logging.handlers
-from logging.handlers import TimedRotatingFileHandler
+import taolelogs
 from EventsDefine import EvensIDS
 from EventsDefine import LoginType
 from tools import SuiboGetIP
@@ -23,16 +21,7 @@ import time
 session=None
 imquokkaDBsession = None
 kafka_hosts=[]
-if not os.path.exists('./logs/suibochat'):
-	os.makedirs('./logs/suibochat')
-level = logging.INFO  
-format = '%(asctime)s %(levelname)s %(module)s.%(funcName)s Line:%(lineno)d %(message)s'  
-hdlr = TimedRotatingFileHandler("./logs/suibochat/suibochat.log","D")  
-fmt = logging.Formatter(format)  
-hdlr.setFormatter(fmt)  
-root = logging.getLogger()
-root.addHandler(hdlr)  
-root.setLevel(level)
+
 
 def InitialimquokkaDB():
 	cf = ConfigParser.ConfigParser()
@@ -49,6 +38,8 @@ def InitialimquokkaDB():
 		imquokkaDBsession = DB_Session()
 	except Exception, e:
 		print Exception,e
+		taolelogs.logroot.warn(e)
+		exit(0)
 	
 
 def InitialDB():
@@ -63,7 +54,7 @@ def InitialDB():
 		kafka_hosts = cf.get("kafka","broker_hosts")
 	except Exception, e:
 		print Exception,":",e
-		root.warn(e)
+		taolelogs.logroot.warn(e)
 		exit(0)
 	
 	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
@@ -76,7 +67,7 @@ def InitialDB():
 		session.execute("SET NAMES 'utf8mb4'")
 	except Exception, e:
 		print Exception,":",e
-		root.warn(e)
+		taolelogs.logroot.warn(e)
 		exit(0)
 
 def  CloseDB():
@@ -90,20 +81,20 @@ def excuteimquokkadb(sql):
 	try:
 		ret = imquokkaDBsession.execute(sql)
 		imquokkaDBsession.commit()
-		return ret
 	except Exception, e:
 		print Exception,":",e
-		root.warn(e)
+		taolelogs.logroot.warn(e)
+	return ret
 
 def savedbsqlalchemy(sql):
 	global session
 	try:
 		ret = session.execute(sql)
 		session.commit()
-		return ret
 	except Exception, e:
 		print Exception,":",e
-		root.warn(e)
+		taolelogs.logroot.warn(e)
+	return ret
 #解析刷花
 def splitSendGift(message):
 	insertsql = None
@@ -304,6 +295,7 @@ def Split():
 
 
 def main():
+	taolelogs.InitailLogs('suibochat')
 	InitialDB()
 	InitialimquokkaDB()
 	Split()
