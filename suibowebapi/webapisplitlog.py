@@ -3,13 +3,9 @@
 import string, os, sys
 sys.path.append('../comm')
 from kafka import KafkaConsumer
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 import ConfigParser
 import json
 import re
-import MySQLdb
-import sqlalchemy
 import datetime
 import time
 import taolelogs

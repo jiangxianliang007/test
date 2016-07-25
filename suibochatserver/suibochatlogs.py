@@ -6,9 +6,6 @@ from kafka import KafkaConsumer
 import ConfigParser
 import json
 import re
-import MySQLdb
-import sqlalchemy
-from sqlalchemy.pool import NullPool
 import taolelogs
 from EventsDefine import EvensIDS
 from EventsDefine import LoginType

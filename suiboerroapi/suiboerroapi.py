@@ -6,8 +6,6 @@ from kafka import KafkaConsumer
 import ConfigParser
 import json
 import re
-import MySQLdb
-import sqlalchemy
 import datetime
 import time
 import threading

@@ -11,8 +11,10 @@ import taolelogs
 from dbhelper import TaoleSessionDB
 session=None
 kafka_hosts=[]
+kafka_topic = ''
 def InitialDB():
 	global kafka_hosts
+	global kafka_topic
 	cf = ConfigParser.ConfigParser()
 	try:
 		cf.read("db.conf")
@@ -21,6 +23,7 @@ def InitialDB():
 		db_user = cf.get("db", "db_user")
 		db_pass = cf.get("db", "db_pass")
 		kafka_hosts = cf.get("kafka","broker_hosts")
+		kafka_topic = cf.get("kafka",'topic')
 	except Exception, e:
 		print Exception,":",e
 		taolelogs.logroot.warn(e)
@@ -51,6 +54,7 @@ def Split():
 						session.excute(sqlstr)
 			except Exception, e:
 				print Exception,":",e
+				taolelogs.logroot.warn(e)
 				continue
 		
 	
