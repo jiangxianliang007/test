@@ -18,12 +18,13 @@ from dbhelper import TaoleSessionDB
 
 session=None
 kafka_hosts=[]
-
+kafka_topic = ''
 
 
 def InitialDB():
 	global kafka_hosts
 	global session
+	global kafka_topic
 	cf = ConfigParser.ConfigParser()
 	try:
 		cf.read("db.conf")

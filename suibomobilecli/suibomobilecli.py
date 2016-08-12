@@ -23,7 +23,7 @@ def InitialDB():
 		db_user = cf.get("db", "db_user")
 		db_pass = cf.get("db", "db_pass")
 		kafka_hosts = cf.get("kafka","broker_hosts")
-		kafka_topic = cf.get("kafka",'topic')
+		#kafka_topic = cf.get("kafka",'topic')
 	except Exception, e:
 		print Exception,":",e
 		taolelogs.logroot.warn(e)
@@ -38,6 +38,7 @@ def InitialDB():
 def Split():
 	global kafka_hosts
 	global session
+	global kafka_topic
 	consumer = KafkaConsumer('suibomobileslogs',
 						 group_id='suibomobile',
                          client_id="suibomobile",

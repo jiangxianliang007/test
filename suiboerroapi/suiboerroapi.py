@@ -20,6 +20,7 @@ from dbhelper import TaoleSessionDB
 import Queue
 session=None
 kafka_hosts=[]
+kafka_topic = ''
 geidsdict= {}
 emailque = Queue.Queue()
 
@@ -63,6 +64,7 @@ def  readErrxml():
 
 def InitialDB():
 	global kafka_hosts
+	global kafka_topic
 	cf = ConfigParser.ConfigParser()
 	try:
 		cf.read("db.conf")
@@ -71,6 +73,7 @@ def InitialDB():
 		db_user = cf.get("db", "db_user")
 		db_pass = cf.get("db", "db_pass")
 		kafka_hosts = cf.get("kafka","broker_hosts")
+		#kafka_topic = cf.get("kafka",'topic')
 	except Exception, e:
 		print Exception,":",e
 		taolelogs.logroot.warn(e)
