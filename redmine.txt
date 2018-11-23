@@ -11,9 +11,5 @@
 	suibo_drawmoney_201607：web用户有提現數據,按月建表
         
 	aaaaasss
-<<<<<<< HEAD
-assssssss
-sssssssslllsssssssssssaaaaassssssssasdasdasd
-=======
 aaaasssflllllllsssssssssssssggggdsddddssssss
->>>>>>> develop
+20181123
