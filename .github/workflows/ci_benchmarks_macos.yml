@@ -7,7 +7,7 @@ on:
     types: [ opened, synchronize, reopened ]
   push:
     branches:
-      - master
+      - qiakr
       - develop
       - 'rc/*'
   merge_group: {}
