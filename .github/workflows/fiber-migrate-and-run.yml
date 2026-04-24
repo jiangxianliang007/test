@@ -86,10 +86,10 @@ jobs:
           ./migrate/target/release/fnn-migrate --version || true
 
       # ── 4. Create working directories ──────────────────────────────────────
-      # Directory layout:
-      #   ckb/          – CKB key file
-      #   fiber/        – fnn data dir (-d fiber/)
-      #   fiber/store/  – RocksDB, extracted from archive
+      # Directory layout (fnn -d .):
+      #   ckb/key       – CKB private key  → fnn reads ./ckb/key
+      #   fiber/store/  – RocksDB          → fnn reads ./fiber/store
+      #   config.yml    – testnet config
       - name: Create working directories
         run: mkdir -p ckb fiber
 
@@ -100,8 +100,8 @@ jobs:
           chmod 600 ckb/key
 
       # ── 6. Download & extract store DB ─────────────────────────────────────
-      # The archive is expected to contain a top-level "store/" directory.
-      # After extraction: fiber/store/  (which is what fnn-migrate -d fiber/ opens)
+      # The archive contains a top-level "store/" directory.
+      # After extraction: fiber/store/  (fnn -d . opens ./fiber/store internally)
       - name: Download & extract store DB
         run: |
           echo "▶ Downloading store archive …"
@@ -120,8 +120,8 @@ jobs:
           ls -la fiber/
 
       # ── 7. Run fnn-migrate ─────────────────────────────────────────────────
-      # fnn-migrate -d <dir> opens <dir>/store internally.
-      # So we pass the parent directory "fiber/" not "fiber/store/".
+      # fnn-migrate -d <dir> opens <dir>/fiber/store internally when run from base.
+      # Based on testing with v0.8.1: pass the parent of store, i.e. fiber/
       - name: Run fnn-migrate
         run: |
           BINARY="./migrate/target/release/fnn-migrate"
@@ -147,8 +147,9 @@ jobs:
           echo "Config 已复制。"
 
       # ── 9. Start fiber node, run 30s, print logs, then exit ────────────────
-      # fnn -d fiber/  → node uses fiber/ as base dir, opens fiber/store/ for DB
-      # ckb key is at ckb/key (referenced in config.yml)
+      # fnn -d .  → base dir is current directory
+      #   reads ckb key from ./ckb/key
+      #   reads/writes DB at  ./fiber/store
       - name: Start fiber node
         env:
           FIBER_SECRET_KEY_PASSWORD: ${{ secrets.FIBER_SECRET_KEY_PASSWORD }}
@@ -156,7 +157,7 @@ jobs:
         run: |
           echo "▶ 启动 fnn，运行 30 秒后打印日志并退出 …"
 
-          ./target/release/fnn -c config.yml -d fiber/ > /tmp/fnn.log 2>&1 &
+          ./target/release/fnn -c config.yml -d . > /tmp/fnn.log 2>&1 &
           FNN_PID=$!
           echo "fnn PID: ${FNN_PID}"
 
