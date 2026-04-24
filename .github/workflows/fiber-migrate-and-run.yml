@@ -1,0 +1,141 @@
+name: Fiber Node — Migrate & Run
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   STORE_USERNAME            – HTTP basic-auth username for store download URL
+#   STORE_PASSWORD            – HTTP basic-auth password for store download URL
+#   CKB_KEY                   – Raw content of the CKB private key file
+#   FIBER_SECRET_KEY_PASSWORD – Password passed to fnn via env var
+# ──────────────────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      fiber_repo:
+        description: 'Fiber source repository (e.g. nervosnetwork/fiber)'
+        required: true
+        default: 'nervosnetwork/fiber'
+      fiber_ref:
+        description: 'Branch / tag / commit SHA to build'
+        required: true
+        default: 'main'
+      store_url:
+        description: 'URL of the store DB archive to download (tar.gz)'
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  migrate-and-run:
+    name: Build → Migrate → Run
+    runs-on: ubuntu-22.04
+    timeout-minutes: 360
+
+    steps:
+      # ── 1. Checkout the fiber source ───────────────────────────────────────
+      - name: Checkout fiber source
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.fiber_repo }}
+          ref: ${{ inputs.fiber_ref }}
+
+      # ── 2. System dependencies ─────────────────────────────────────────────
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            clang libclang-dev make curl ca-certificates
+
+      # ── 3. Build fnn & fnn-migrate (portable, static OpenSSL) ─────────────
+      - name: Build fnn & fnn-migrate (portable)
+        run: |
+          export BUILD_ROOT=$(pwd)
+
+          echo "▶ Building OpenSSL 1.1.1s (static) …"
+          curl -sSLO https://www.openssl.org/source/openssl-1.1.1s.tar.gz
+          tar -xzf openssl-1.1.1s.tar.gz
+          cd openssl-1.1.1s
+          ./Configure linux-x86_64 shared
+          make -j"$(nproc)"
+          cd ..
+
+          export OPENSSL_LIB_DIR="${BUILD_ROOT}/openssl-1.1.1s"
+          export OPENSSL_INCLUDE_DIR="${BUILD_ROOT}/openssl-1.1.1s/include"
+          export OPENSSL_STATIC=1
+
+          echo "▶ Building fnn (release, portable) …"
+          cargo build --release --locked --features portable
+
+          echo "▶ Building fnn-migrate (release) …"
+          cd migrate && cargo build --release --locked && cd ..
+
+      # ── 4. Create working directories ──────────────────────────────────────
+      - name: Create working directories
+        run: mkdir -p ckb fiber
+
+      # ── 5. Write CKB key ───────────────────────────────────────────────────
+      - name: Write CKB key
+        run: |
+          printf '%s' "${{ secrets.CKB_KEY }}" > ckb/key
+          chmod 600 ckb/key
+
+      # ── 6. Download & extract store DB ─────────────────────────────────────
+      - name: Download & extract store DB
+        run: |
+          echo "▶ Downloading store archive …"
+          curl -fsSL \
+            -u "${{ secrets.STORE_USERNAME }}:${{ secrets.STORE_PASSWORD }}" \
+            "${{ inputs.store_url }}" \
+            -o /tmp/store_archive.tar.gz
+
+          echo "▶ Extracting into fiber/ …"
+          tar -xzf /tmp/store_archive.tar.gz -C fiber/
+
+          # Detect the top-level entry inside the archive
+          STORE_SUBDIR=$(tar -tzf /tmp/store_archive.tar.gz \
+            | head -1 | sed 's|/.*||')
+
+          if [ -n "$STORE_SUBDIR" ] && [ -d "fiber/$STORE_SUBDIR" ]; then
+            STORE_PATH="fiber/$STORE_SUBDIR"
+          else
+            STORE_PATH="fiber"
+          fi
+
+          echo "STORE_PATH=${STORE_PATH}" >> "$GITHUB_ENV"
+          echo "Store path: ${STORE_PATH}"
+
+      # ── 7. Run fnn-migrate ─────────────────────────────────────────────────
+      - name: Run fnn-migrate
+        run: |
+          BINARY="./target/release/fnn-migrate"
+          STORE="${{ env.STORE_PATH }}"
+
+          echo "▶ Running fnn-migrate -p ${STORE} …"
+
+          MIGRATE_OUTPUT=$(printf 'YES\n' | "$BINARY" -p "$STORE" 2>&1) || true
+          echo "$MIGRATE_OUTPUT"
+
+          if echo "$MIGRATE_OUTPUT" | grep -q "no need to migrate"; then
+            echo "✅ DB 已是最新版本，无需迁移。"
+          elif echo "$MIGRATE_OUTPUT" | grep -q "db migrated successfully"; then
+            echo "✅ 迁移成功完成。"
+          else
+            echo "❌ 迁移未按预期完成，请检查上方输出。"
+            exit 1
+          fi
+
+      # ── 8. Copy testnet config ─────────────────────────────────────────────
+      - name: Copy testnet config
+        run: |
+          cp config/testnet/config.yml ./config.yml
+          echo "Config 已复制。"
+
+      # ── 9. Start fiber node ────────────────────────────────────────────────
+      - name: Start fiber node
+        env:
+          FIBER_SECRET_KEY_PASSWORD: ${{ secrets.FIBER_SECRET_KEY_PASSWORD }}
+          RUST_LOG: info
+        run: |
+          echo "▶ 启动 fnn …"
+          ./target/release/fnn -c config.yml -d .
