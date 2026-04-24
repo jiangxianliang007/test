@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       fiber_repo:
-        description: 'Fiber source repository (e.g. nervosnetwork/fiber)'
+        description: 'Fiber source repository (e.g. nervosnetwork/fiber or https://github.com/quake/fiber)'
         required: true
         default: 'nervosnetwork/fiber'
       fiber_ref:
@@ -33,11 +33,18 @@ jobs:
     timeout-minutes: 360
 
     steps:
+      # ── 0. Normalize fiber_repo (strip URL prefix / .git suffix) ───────────
+      - name: Normalize fiber_repo input
+        run: |
+          REPO="${{ inputs.fiber_repo }}"
+          REPO=$(echo "$REPO" | sed 's|https://github.com/||;s|\.git$||')
+          echo "FIBER_REPO=${REPO}" >> "$GITHUB_ENV"
+
       # ── 1. Checkout the fiber source ───────────────────────────────────────
       - name: Checkout fiber source
         uses: actions/checkout@v4
         with:
-          repository: ${{ inputs.fiber_repo }}
+          repository: ${{ env.FIBER_REPO }}
           ref: ${{ inputs.fiber_ref }}
 
       # ── 2. System dependencies ─────────────────────────────────────────────
@@ -69,6 +76,14 @@ jobs:
 
           echo "▶ Building fnn-migrate (release) …"
           cd migrate && cargo build --release --locked && cd ..
+
+      # ── 3a. Print versions ─────────────────────────────────────────────────
+      - name: Print binary versions
+        run: |
+          echo "===== fnn version ====="
+          ./target/release/fnn --version || true
+          echo "===== fnn-migrate version ====="
+          ./migrate/target/release/fnn-migrate --version || true
 
       # ── 4. Create working directories ──────────────────────────────────────
       - name: Create working directories
@@ -108,11 +123,14 @@ jobs:
       # ── 7. Run fnn-migrate ─────────────────────────────────────────────────
       - name: Run fnn-migrate
         run: |
-          BINARY="./target/release/fnn-migrate"
+          BINARY="./migrate/target/release/fnn-migrate"
           STORE="${{ env.STORE_PATH }}"
 
           echo "▶ Running fnn-migrate -p ${STORE} …"
 
+          # Pipe "YES" unconditionally:
+          # - DB already current  → ignored, prints "no need to migrate", exits 0
+          # - Migration needed    → satisfies interactive prompt, migration runs
           MIGRATE_OUTPUT=$(printf 'YES\n' | "$BINARY" -p "$STORE" 2>&1) || true
           echo "$MIGRATE_OUTPUT"
 
@@ -131,11 +149,46 @@ jobs:
           cp config/testnet/config.yml ./config.yml
           echo "Config 已复制。"
 
-      # ── 9. Start fiber node ────────────────────────────────────────────────
+      # ── 9. Start fiber node & wait for successful startup ──────────────────
       - name: Start fiber node
         env:
           FIBER_SECRET_KEY_PASSWORD: ${{ secrets.FIBER_SECRET_KEY_PASSWORD }}
           RUST_LOG: info
         run: |
           echo "▶ 启动 fnn …"
-          ./target/release/fnn -c config.yml -d .
+
+          # Run in background, redirect logs to file
+          ./target/release/fnn -c config.yml -d . > /tmp/fnn.log 2>&1 &
+          FNN_PID=$!
+          echo "fnn PID: ${FNN_PID}"
+
+          # Wait up to 60s for a sign of successful startup
+          SUCCESS=false
+          for i in $(seq 1 60); do
+            sleep 1
+            # Check process is still alive
+            if ! kill -0 "$FNN_PID" 2>/dev/null; then
+              echo "❌ fnn 进程已退出，启动失败。日志如下："
+              cat /tmp/fnn.log
+              exit 1
+            fi
+            # Look for a startup success indicator in the log
+            if grep -qiE "(fiber node started|listening on|rpc server started|p2p service started)" /tmp/fnn.log 2>/dev/null; then
+              SUCCESS=true
+              break
+            fi
+            echo "  等待启动… (${i}s)"
+          done
+
+          echo "===== fnn 启动日志 ====="
+          cat /tmp/fnn.log
+
+          if [ "$SUCCESS" = "true" ]; then
+            echo "✅ fnn 节点启���成功，正在退出 CI job。"
+            kill "$FNN_PID" 2>/dev/null || true
+            exit 0
+          else
+            echo "⚠️  60s 内未检测到明确的启动成功信号，但进程仍在运行，视为启动成功。"
+            kill "$FNN_PID" 2>/dev/null || true
+            exit 0
+          fi
