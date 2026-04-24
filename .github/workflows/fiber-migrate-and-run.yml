@@ -20,7 +20,7 @@ on:
         required: true
         default: 'main'
       store_url:
-        description: 'URL of the store DB archive to download (tar.gz)'
+        description: 'URL of the store DB archive to download (tar.gz, contains store/ inside)'
         required: true
 
 env:
@@ -86,6 +86,10 @@ jobs:
           ./migrate/target/release/fnn-migrate --version || true
 
       # ── 4. Create working directories ──────────────────────────────────────
+      # Directory layout:
+      #   ckb/          – CKB key file
+      #   fiber/        – fnn data dir (-d fiber/)
+      #   fiber/store/  – RocksDB, extracted from archive
       - name: Create working directories
         run: mkdir -p ckb fiber
 
@@ -96,6 +100,8 @@ jobs:
           chmod 600 ckb/key
 
       # ── 6. Download & extract store DB ─────────────────────────────────────
+      # The archive is expected to contain a top-level "store/" directory.
+      # After extraction: fiber/store/  (which is what fnn-migrate -d fiber/ opens)
       - name: Download & extract store DB
         run: |
           echo "▶ Downloading store archive …"
@@ -104,34 +110,25 @@ jobs:
             "${{ inputs.store_url }}" \
             -o /tmp/store_archive.tar.gz
 
+          echo "▶ Archive contents (top 20 lines):"
+          tar -tzf /tmp/store_archive.tar.gz | head -20
+
           echo "▶ Extracting into fiber/ …"
           tar -xzf /tmp/store_archive.tar.gz -C fiber/
 
-          # Detect the top-level entry inside the archive
-          STORE_SUBDIR=$(tar -tzf /tmp/store_archive.tar.gz \
-            | head -1 | sed 's|/.*||')
-
-          if [ -n "$STORE_SUBDIR" ] && [ -d "fiber/$STORE_SUBDIR" ]; then
-            STORE_PATH="fiber/$STORE_SUBDIR"
-          else
-            STORE_PATH="fiber"
-          fi
-
-          echo "STORE_PATH=${STORE_PATH}" >> "$GITHUB_ENV"
-          echo "Store path: ${STORE_PATH}"
+          echo "▶ fiber/ directory after extraction:"
+          ls -la fiber/
 
       # ── 7. Run fnn-migrate ─────────────────────────────────────────────────
+      # fnn-migrate -d <dir> opens <dir>/store internally.
+      # So we pass the parent directory "fiber/" not "fiber/store/".
       - name: Run fnn-migrate
         run: |
           BINARY="./migrate/target/release/fnn-migrate"
-          STORE="${{ env.STORE_PATH }}"
 
-          echo "▶ Running fnn-migrate -p ${STORE} …"
+          echo "▶ Running: $BINARY -d fiber/ …"
 
-          # Pipe "YES" unconditionally:
-          # - DB already current  → ignored, prints "no need to migrate", exits 0
-          # - Migration needed    → satisfies interactive prompt, migration runs
-          MIGRATE_OUTPUT=$(printf 'YES\n' | "$BINARY" -p "$STORE" 2>&1) || true
+          MIGRATE_OUTPUT=$(printf 'YES\n' | "$BINARY" -d fiber/ 2>&1) || true
           echo "$MIGRATE_OUTPUT"
 
           if echo "$MIGRATE_OUTPUT" | grep -q "no need to migrate"; then
@@ -150,6 +147,8 @@ jobs:
           echo "Config 已复制。"
 
       # ── 9. Start fiber node, run 30s, print logs, then exit ────────────────
+      # fnn -d fiber/  → node uses fiber/ as base dir, opens fiber/store/ for DB
+      # ckb key is at ckb/key (referenced in config.yml)
       - name: Start fiber node
         env:
           FIBER_SECRET_KEY_PASSWORD: ${{ secrets.FIBER_SECRET_KEY_PASSWORD }}
@@ -157,15 +156,12 @@ jobs:
         run: |
           echo "▶ 启动 fnn，运行 30 秒后打印日志并退出 …"
 
-          # Start in background, capture stdout+stderr to log file
-          ./target/release/fnn -c config.yml -d . > /tmp/fnn.log 2>&1 &
+          ./target/release/fnn -c config.yml -d fiber/ > /tmp/fnn.log 2>&1 &
           FNN_PID=$!
           echo "fnn PID: ${FNN_PID}"
 
-          # Wait 30 seconds
           sleep 30
 
-          # Check if process is still alive
           if ! kill -0 "$FNN_PID" 2>/dev/null; then
             echo "❌ fnn 进程在 30 秒内意外退出，启动失败。"
             echo "===== fnn 日志 ====="
@@ -174,12 +170,9 @@ jobs:
           fi
 
           echo "✅ fnn 节点运行正常（存活 30 秒）。"
-
-          # Print the 30s of logs
           echo "===== fnn 启动日志（前 30 秒）====="
           cat /tmp/fnn.log
 
-          # Gracefully stop the node and exit
           kill "$FNN_PID" 2>/dev/null || true
           wait "$FNN_PID" 2>/dev/null || true
           echo "✅ fnn 已停止，CI job 退出。"
