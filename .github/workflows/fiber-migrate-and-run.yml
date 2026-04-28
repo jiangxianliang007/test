@@ -1,27 +1,20 @@
 name: Fiber Node — Migrate & Run
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Required repository secrets (Settings → Secrets and variables → Actions):
-#   STORE_USERNAME            – HTTP basic-auth username for store download URL
-#   STORE_PASSWORD            – HTTP basic-auth password for store download URL
-#   CKB_KEY                   – Raw content of the CKB private key file
-#   FIBER_SECRET_KEY_PASSWORD – Password passed to fnn via env var
-# ──────────────────────────────────────────────────────────────────────────────
-
 on:
   workflow_dispatch:
     inputs:
       fiber_repo:
-        description: 'Fiber source repository (e.g. nervosnetwork/fiber or https://github.com/quake/fiber)'
+        description: 'Fiber source repository (e.g. nervosnetwork/fiber)'
         required: true
         default: 'nervosnetwork/fiber'
       fiber_ref:
         description: 'Branch / tag / commit SHA to build'
         required: true
         default: 'main'
-      store_url:
-        description: 'URL of the store DB archive to download (tar.gz, contains store/ inside)'
-        required: true
+      store_date:
+        description: 'DB date (YYYYMMDD), leave empty to use today'
+        required: false
+        default: ''
 
 env:
   CARGO_TERM_COLOR: always
@@ -33,28 +26,33 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      # ── 0. Normalize fiber_repo (strip URL prefix / .git suffix) ───────────
       - name: Normalize fiber_repo input
         run: |
           REPO="${{ inputs.fiber_repo }}"
           REPO=$(echo "$REPO" | sed 's|https://github.com/||;s|\.git$||')
           echo "FIBER_REPO=${REPO}" >> "$GITHUB_ENV"
 
-      # ── 1. Checkout the fiber source ───────────────────────────────────────
+      - name: Resolve store URL
+        run: |
+          DATE="${{ inputs.store_date }}"
+          if [ -z "$DATE" ]; then
+            DATE=$(date +%Y%m%d)
+          fi
+          echo "STORE_URL=http://18.163.221.211:8888/fiber-db-${DATE}.tar.gz" >> "$GITHUB_ENV"
+          echo "▶ Store URL: http://18.163.221.211:8888/fiber-db-${DATE}.tar.gz"
+
       - name: Checkout fiber source
         uses: actions/checkout@v4
         with:
           repository: ${{ env.FIBER_REPO }}
           ref: ${{ inputs.fiber_ref }}
 
-      # ── 2. System dependencies ─────────────────────────────────────────────
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y --no-install-recommends \
             clang libclang-dev make curl ca-certificates
 
-      # ── 3. Build fnn & fnn-migrate (portable, static OpenSSL) ─────────────
       - name: Build fnn & fnn-migrate (portable)
         run: |
           export BUILD_ROOT=$(pwd)
@@ -77,7 +75,6 @@ jobs:
           echo "▶ Building fnn-migrate (release) …"
           cd migrate && cargo build --release --locked && cd ..
 
-      # ── 3a. Print versions ─────────────────────────────────────────────────
       - name: Print binary versions
         run: |
           echo "===== fnn version ====="
@@ -85,29 +82,20 @@ jobs:
           echo "===== fnn-migrate version ====="
           ./migrate/target/release/fnn-migrate --version || true
 
-      # ── 4. Create working directories ──────────────────────────────────────
-      # Directory layout (fnn -d .):
-      #   ckb/key       – CKB private key  → fnn reads ./ckb/key
-      #   fiber/store/  – RocksDB          → fnn reads ./fiber/store
-      #   config.yml    – testnet config
       - name: Create working directories
         run: mkdir -p ckb fiber
 
-      # ── 5. Write CKB key ───────────────────────────────────────────────────
       - name: Write CKB key
         run: |
           printf '%s' "${{ secrets.CKB_KEY }}" > ckb/key
           chmod 600 ckb/key
 
-      # ── 6. Download & extract store DB ─────────────────────────────────────
-      # The archive contains a top-level "store/" directory.
-      # After extraction: fiber/store/  (fnn -d . opens ./fiber/store internally)
       - name: Download & extract store DB
         run: |
           echo "▶ Downloading store archive …"
           curl -fsSL \
             -u "${{ secrets.STORE_USERNAME }}:${{ secrets.STORE_PASSWORD }}" \
-            "${{ inputs.store_url }}" \
+            "${{ env.STORE_URL }}" \
             -o /tmp/store_archive.tar.gz
 
           echo "▶ Archive contents (top 20 lines):"
@@ -119,9 +107,6 @@ jobs:
           echo "▶ fiber/ directory after extraction:"
           ls -la fiber/
 
-      # ── 7. Run fnn-migrate ─────────────────────────────────────────────────
-      # fnn-migrate -d <dir> opens <dir>/fiber/store internally when run from base.
-      # Based on testing with v0.8.1: pass the parent of store, i.e. fiber/
       - name: Run fnn-migrate
         run: |
           BINARY="./migrate/target/release/fnn-migrate"
@@ -140,16 +125,11 @@ jobs:
             exit 1
           fi
 
-      # ── 8. Copy testnet config ─────────────────────────────────────────────
       - name: Copy testnet config
         run: |
           cp config/testnet/config.yml ./config.yml
           echo "Config 已复制。"
 
-      # ── 9. Start fiber node, run 30s, print logs, then exit ────────────────
-      # fnn -d .  → base dir is current directory
-      #   reads ckb key from ./ckb/key
-      #   reads/writes DB at  ./fiber/store
       - name: Start fiber node
         env:
           FIBER_SECRET_KEY_PASSWORD: ${{ secrets.FIBER_SECRET_KEY_PASSWORD }}
