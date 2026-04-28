@@ -117,25 +117,25 @@ jobs:
           echo "$MIGRATE_OUTPUT"
 
           if echo "$MIGRATE_OUTPUT" | grep -q "no need to migrate"; then
-            echo "✅ DB 已是最新版本，无需迁移。"
+            echo "✅ DB is already up to date, no migration needed."
           elif echo "$MIGRATE_OUTPUT" | grep -q "db migrated successfully"; then
-            echo "✅ 迁移成功完成。"
+            echo "✅ Migration completed successfully."
           else
-            echo "❌ 迁移未按预期完成，请检查上方输出。"
+            echo "❌ Migration did not complete as expected, please check the output above."
             exit 1
           fi
 
       - name: Copy testnet config
         run: |
           cp config/testnet/config.yml ./config.yml
-          echo "Config 已复制。"
+          echo "Config copied."
 
       - name: Start fiber node
         env:
           FIBER_SECRET_KEY_PASSWORD: ${{ secrets.FIBER_SECRET_KEY_PASSWORD }}
           RUST_LOG: info
         run: |
-          echo "▶ 启动 fnn，运行 30 秒后打印日志并退出 …"
+          echo "▶ Starting fnn, will run for 30 seconds then print logs and exit …"
 
           ./target/release/fnn -c config.yml -d . > /tmp/fnn.log 2>&1 &
           FNN_PID=$!
@@ -144,16 +144,16 @@ jobs:
           sleep 30
 
           if ! kill -0 "$FNN_PID" 2>/dev/null; then
-            echo "❌ fnn 进程在 30 秒内意外退出，启动失败。"
-            echo "===== fnn 日志 ====="
+            echo "❌ fnn process exited unexpectedly within 30 seconds, startup failed."
+            echo "===== fnn logs ====="
             cat /tmp/fnn.log
             exit 1
           fi
 
-          echo "✅ fnn 节点运行正常（存活 30 秒）。"
-          echo "===== fnn 启动日志（前 30 秒）====="
+          echo "✅ fnn node is running normally (alive for 30 seconds)."
+          echo "===== fnn startup logs (first 30 seconds) ====="
           cat /tmp/fnn.log
 
           kill "$FNN_PID" 2>/dev/null || true
           wait "$FNN_PID" 2>/dev/null || true
-          echo "✅ fnn 已停止，CI job 退出。"
+          echo "✅ fnn stopped, CI job exiting."
