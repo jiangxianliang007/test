@@ -117,7 +117,8 @@ jobs:
           echo "$MIGRATE_OUTPUT"
 
           if echo "$MIGRATE_OUTPUT" | grep -q "no need to migrate"; then
-            echo "✅ DB is already up to date, no migration needed."
+            echo "❌ DB reports no migration needed — the store DB may already be at this version. Aborting."
+            exit 1
           elif echo "$MIGRATE_OUTPUT" | grep -q "db migrated successfully"; then
             echo "✅ Migration completed successfully."
           else
