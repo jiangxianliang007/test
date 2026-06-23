@@ -15,6 +15,7 @@ from EventsDefine import LoginType
 from tabledefine import TableNameS
 from EventsDefine import PayTypeName
 from dbhelper import TaoleSessionDB
+from confighelper import load_db_config
 session=None
 kafka_hosts=[]
 kafka_topic = ''
@@ -25,22 +26,16 @@ def InitialDB():
 	global kafka_hosts
 	global session
 	global kafka_topic
-	cf = ConfigParser.ConfigParser()
 	try:
-		cf.read("db.conf")
-		db_host = cf.get("db", "db_host")
-		db_port = cf.getint("db", "db_port")
-		db_user = cf.get("db", "db_user")
-		db_pass = cf.get("db", "db_pass")
-		kafka_hosts = cf.get("kafka","broker_hosts")
-		#kafka_topic = cf.get("kafka",'topic')
+		config = load_db_config()
 	except Exception, e:
 		print Exception,":",e
 		taolelogs.logroot.warn(e)
 		exit(0)
+	kafka_hosts = config.kafka_hosts
 	
-	print "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s"%(db_host,db_port,db_user,db_pass,kafka_hosts)
-	session = TaoleSessionDB(db_host,db_port,db_user,db_pass,'imsuibo')
+	print config.log_message()
+	session = TaoleSessionDB(config.host,config.port,config.user,config.password,'imsuibo')
 
 
 
