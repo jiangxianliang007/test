@@ -12,12 +12,14 @@ def InitailLogs(logname,level=logging.WARN):
 	if not os.path.exists('./logs/'):
 		os.makedirs('./logs/')
 	format = '%(asctime)s %(levelname)s %(module)s.%(funcName)s Line:%(lineno)d %(message)s'  
-	hdlr = TimedRotatingFileHandler("./logs/"+logname + '.log',"D")  
-	fmt = logging.Formatter(format)  
-	hdlr.setFormatter(fmt)  
 	logroot = logging.getLogger(logname)
-	logroot.addHandler(hdlr)  
 	logroot.setLevel(level)
+	if not logroot.handlers:
+		hdlr = TimedRotatingFileHandler("./logs/"+logname + '.log',"D")
+		fmt = logging.Formatter(format)
+		hdlr.setFormatter(fmt)
+		logroot.addHandler(hdlr)
+	logroot.propagate = False
 	return logroot
 	
 def GetTaoleLog():

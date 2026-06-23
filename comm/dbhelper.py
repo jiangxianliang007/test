@@ -21,10 +21,13 @@ class TaoleSessionDB(object):
 		except Exception, e:
 			print Exception,":",e
 			taolelogs.logroot.warn(e)
+			self.session.rollback()
 			result = None
 		return result
 
 	def close(self):
+		if not hasattr(self, 'session'):
+			return True
 		try:
 			self.session.close()
 		except Exception, e:
@@ -48,6 +51,8 @@ class dbhelper(object):
 			print Exception,e
 			taolelogs.logroot.warn(e)
 	def close(self):
+		if not hasattr(self, 'connect'):
+			return True
 		try:
 			self.connect.close()
 		except Exception, e:
