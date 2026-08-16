@@ -23,9 +23,8 @@ def sendEmail(subject, tousrs, fromstr, msg):
 	message['From'] = fromstr
 	message['To'] = ",".join(tousrs)
 
-	smtp = smtplib.SMTP()
+	smtp = smtplib.SMTP(smtpserver)
 	try:
-		smtp.connect(smtpserver)
 		smtp.login(username, password)
 		smtp.sendmail(username, tousrs, message.as_string())
 	finally:
