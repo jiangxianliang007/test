@@ -1,21 +1,32 @@
 # encoding: utf-8
 #!/usr/bin/python
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
-def sendEmail(subject,tousrs,fromstr,msg):
-	sender = 'redmine@taolesoft.com'
-	smtpserver = 'smtp.exmail.qq.com'
-	username = 'redmine@taolesoft.com'
-	password = 'taole88'
-	msg = MIMEText(msg, 'plain', 'utf-8')
-	msg['Subject'] = Header(subject, 'utf-8')
-	msg['from'] = fromstr
-	msg['to'] = ",".join(tousrs)
-	smtp = smtplib.SMTP()
-	smtp.connect('smtp.exmail.qq.com')
-	smtp.login(username, password)
-	smtp.sendmail(sender, tousrs, msg.as_string())
-	smtp.quit()
 
-#sendEmail('fdf',['whg@taolesoft.com','76980374@qq.com'],'dgdfg','报')
+
+DEFAULT_SMTP_SERVER = 'smtp.exmail.qq.com'
+DEFAULT_SMTP_USER = 'redmine@taolesoft.com'
+
+
+def sendEmail(subject, tousrs, fromstr, msg):
+	"""Send an email using credentials supplied through the environment."""
+	smtpserver = os.environ.get('SMTP_SERVER', DEFAULT_SMTP_SERVER)
+	username = os.environ.get('SMTP_USERNAME', DEFAULT_SMTP_USER)
+	password = os.environ.get('SMTP_PASSWORD')
+	if not password:
+		raise ValueError('SMTP_PASSWORD environment variable is required')
+
+	message = MIMEText(msg, 'plain', 'utf-8')
+	message['Subject'] = Header(subject, 'utf-8')
+	message['From'] = fromstr
+	message['To'] = ",".join(tousrs)
+
+	smtp = smtplib.SMTP()
+	try:
+		smtp.connect(smtpserver)
+		smtp.login(username, password)
+		smtp.sendmail(username, tousrs, message.as_string())
+	finally:
+		smtp.quit()
