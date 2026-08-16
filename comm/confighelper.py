@@ -13,8 +13,9 @@ class DBConfig(object):
 		self.kafka_hosts = kafka_hosts
 
 	def log_message(self):
-		return "dbhost:%s dbport%s dbuser:%s dbpwd:%s broker_hosts:%s" % (
-			self.host, self.port, self.user, self.password, self.kafka_hosts)
+		"""Return connection metadata without exposing the database password."""
+		return "dbhost:%s dbport:%s dbuser:%s dbpwd:%s broker_hosts:%s" % (
+			self.host, self.port, self.user, "******", self.kafka_hosts)
 
 
 def load_db_config(path="db.conf"):
